@@ -1,0 +1,12 @@
+{
+  "name": "estoque-chile-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de controle de estoque Chile Biju & Blusa Studio",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
