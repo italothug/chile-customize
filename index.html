@@ -53,7 +53,7 @@
   .eq-table-wrap{overflow-x:auto;border:1px solid var(--line-soft);border-radius:12px;}
   table.eq-table{width:100%;border-collapse:collapse;font-size:13px;min-width:560px;}
   table.eq-table th{text-align:left;font-weight:500;color:var(--tx-3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:10px 12px;border-bottom:1px solid var(--line-soft);background:var(--ink-2);white-space:nowrap;}
-  table.eq-table td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle;}
+  table.eq-table td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle;color:var(--tx);}
   table.eq-table tr:last-child td{border-bottom:none;}
   table.eq-table tbody tr:hover{background:var(--ink-2);}
   .eq-mono{font-family:var(--mono);}
@@ -84,6 +84,12 @@
   .eq-toast.show{display:block;}
   .eq-toast.err{background:var(--pink-dim);border-color:var(--pink);color:var(--pink);}
   @media(max-width:520px){.eq-form{grid-template-columns:1fr;}}
+  #estoque-root table.eq-table tbody td{color:var(--tx) !important;}
+  #estoque-root .eq-section-title{color:var(--tx) !important;}
+  #estoque-root input,
+  #estoque-root select,
+  #estoque-root textarea{color:var(--tx) !important;}
+  #estoque-root button{font-family:var(--sans);}
 </style>
 <div id="estoque-root">
   <div class="eq-head">
