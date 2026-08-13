@@ -194,7 +194,7 @@ body {
         <button type="button" class="eq-btn-stamp" id="eq-mov-submit">Carimbar movimento</button>
       </div>
 
-      <p class="eq-section-title">Últimos lançamentos</p>
+      <p class="eq-section-title">Últimos lançamentos <span style="font-family:var(--sans);font-weight:400;font-size:12px;color:var(--tx-3);">(mais recentes)</span></p>
       <div class="eq-table-wrap">
         <table class="eq-table">
           <thead><tr><th>Data</th><th>Produto</th><th>Tamanho</th><th>Tipo</th><th>Qtd</th><th>Valor</th><th>Motivo</th><th></th></tr></thead>
@@ -305,17 +305,82 @@ body {
 
   var loginGate = document.getElementById('eq-login-gate');
   var loginErro = document.getElementById('login-erro');
+  var realtimeChannel = null;
+  var justProcessedMovIds = {};
+  var justProcessedProdCodigos = {};
 
   function showApp(){
     loginGate.style.display = 'none';
     root.style.display = '';
     loadData();
+    subscribeRealtime();
   }
 
   function showLogin(msg){
     loginGate.style.display = '';
     root.style.display = 'none';
+    unsubscribeRealtime();
     if (msg){ loginErro.textContent = msg; loginErro.style.display = ''; }
+  }
+
+  function subscribeRealtime(){
+    if (realtimeChannel || !db) return;
+    realtimeChannel = db.channel('estoque-sync')
+      .on('postgres_changes', {event:'INSERT', schema:'public', table:'movements'}, handleRealtimeMovInsert)
+      .on('postgres_changes', {event:'DELETE', schema:'public', table:'movements'}, handleRealtimeMovDelete)
+      .on('postgres_changes', {event:'INSERT', schema:'public', table:'products'}, handleRealtimeProdUpsert)
+      .on('postgres_changes', {event:'UPDATE', schema:'public', table:'products'}, handleRealtimeProdUpsert)
+      .on('postgres_changes', {event:'DELETE', schema:'public', table:'products'}, handleRealtimeProdDelete)
+      .subscribe();
+  }
+
+  function unsubscribeRealtime(){
+    if (realtimeChannel && db){ db.removeChannel(realtimeChannel); realtimeChannel = null; }
+  }
+
+  function handleRealtimeMovInsert(payload){
+    var mv = payload.new;
+    var id = String(mv.id);
+    if (justProcessedMovIds[id]){ delete justProcessedMovIds[id]; return; }
+    if (!mv.tamanho) mv.tamanho = '-';
+    if (!movements.some(function(m){ return String(m.id) === id; })){
+      movements.unshift(mv);
+      if (movements.length > MOV_FETCH_LIMIT) movements.length = MOV_FETCH_LIMIT;
+    }
+    var key = saldoKey(mv.codigo, mv.tamanho);
+    var delta = mv.tipo === 'Entrada' ? Number(mv.qtd) : -Number(mv.qtd);
+    saldoMap[key] = (saldoMap[key] || 0) + delta;
+    renderAll();
+    toast('🔄 Novo lançamento sincronizado de outro aparelho.');
+  }
+
+  function handleRealtimeMovDelete(payload){
+    var mv = payload.old;
+    var id = String(mv.id);
+    if (justProcessedMovIds[id]){ delete justProcessedMovIds[id]; return; }
+    movements = movements.filter(function(m){ return String(m.id) !== id; });
+    var key = saldoKey(mv.codigo, mv.tamanho);
+    var delta = mv.tipo === 'Entrada' ? -Number(mv.qtd) : Number(mv.qtd);
+    saldoMap[key] = (saldoMap[key] || 0) + delta;
+    renderAll();
+    toast('🔄 Um lançamento foi removido em outro aparelho.');
+  }
+
+  function handleRealtimeProdUpsert(payload){
+    var p = ensureProductShape(payload.new);
+    if (justProcessedProdCodigos[p.codigo]){ delete justProcessedProdCodigos[p.codigo]; return; }
+    var idx = products.findIndex(function(x){ return x.codigo === p.codigo; });
+    if (idx >= 0) products[idx] = p; else products.push(p);
+    renderAll();
+    toast('🔄 Catálogo atualizado em outro aparelho.');
+  }
+
+  function handleRealtimeProdDelete(payload){
+    var codigo = payload.old.codigo;
+    if (justProcessedProdCodigos[codigo]){ delete justProcessedProdCodigos[codigo]; return; }
+    products = products.filter(function(p){ return p.codigo !== codigo; });
+    renderAll();
+    toast('🔄 Um produto foi removido em outro aparelho.');
   }
 
   async function checkAuthAndInit(){
@@ -362,6 +427,11 @@ body {
     }
   }
 
+  var saldoMap = {};
+  var MOV_FETCH_LIMIT = 60;
+
+  function saldoKey(codigo, tamanho){ return codigo + '|' + tamanho; }
+
   async function loadData(){
     try {
       var prodResult = await db.from('products').select('*').order('codigo');
@@ -376,7 +446,17 @@ body {
         products = (seedResult.data || products).map(ensureProductShape);
       }
 
-      var movResult = await db.from('movements').select('*').order('ts', {ascending:false});
+      // Saldo por produto/tamanho vem pronto do banco (view stock_balances),
+      // em vez de baixar toda a história de movimentações pra somar aqui.
+      var balResult = await db.from('stock_balances').select('*');
+      if (balResult.error) throw balResult.error;
+      saldoMap = {};
+      (balResult.data || []).forEach(function(row){
+        saldoMap[saldoKey(row.codigo, row.tamanho)] = Number(row.saldo) || 0;
+      });
+
+      // Só os lançamentos mais recentes são baixados (histórico completo fica no banco).
+      var movResult = await db.from('movements').select('*').order('ts', {ascending:false}).limit(MOV_FETCH_LIMIT);
       if (movResult.error) throw movResult.error;
       movements = movResult.data || [];
       movements.forEach(function(mv){ if (!mv.tamanho) mv.tamanho = '-'; });
@@ -385,6 +465,7 @@ body {
       console.error(e);
       products = [];
       movements = [];
+      saldoMap = {};
       renderAll();
       toast('Erro ao carregar o Supabase: ' + (e.message || e), true);
     }
@@ -392,6 +473,7 @@ body {
 
   async function saveProducts(){
     try {
+      products.forEach(function(p){ justProcessedProdCodigos[p.codigo] = true; });
       var result = await db.from('products').upsert(products, {onConflict:'codigo'});
       if (result.error) throw result.error;
       return true;
@@ -402,9 +484,10 @@ body {
     }
   }
 
-  async function saveMovements(){
+  async function insertMovement(mv){
     try {
-      var result = await db.from('movements').upsert(movements, {onConflict:'id'});
+      justProcessedMovIds[String(mv.id)] = true;
+      var result = await db.from('movements').insert([mv]);
       if (result.error) throw result.error;
       return true;
     } catch(e){
@@ -415,14 +498,7 @@ body {
   }
 
   function stockFor(codigo, tamanho){
-    var entradas = 0, saidas = 0;
-    movements.forEach(function(mv){
-      if (mv.codigo !== codigo) return;
-      if (tamanho !== undefined && (mv.tamanho || '-') !== tamanho) return;
-      if (mv.tipo === 'Entrada') entradas += Number(mv.qtd);
-      else saidas += Number(mv.qtd);
-    });
-    return {entradas:entradas, saidas:saidas, saldo:entradas-saidas};
+    return {saldo: saldoMap[saldoKey(codigo, tamanho)] || 0};
   }
 
   function getStockRows(){
@@ -682,10 +758,17 @@ body {
     Array.prototype.forEach.call(body.querySelectorAll('[data-del]'), function(btn){
       btn.addEventListener('click', async function(){
         var id = btn.getAttribute('data-del');
+        var mv = movements.filter(function(m){ return String(m.id) === id; })[0];
         try {
+          justProcessedMovIds[id] = true;
           var result = await db.from('movements').delete().eq('id', id);
           if (result.error) throw result.error;
           movements = movements.filter(function(m){ return String(m.id) !== id; });
+          if (mv){
+            var key = saldoKey(mv.codigo, mv.tamanho);
+            var delta = mv.tipo === 'Entrada' ? -Number(mv.qtd) : Number(mv.qtd);
+            saldoMap[key] = (saldoMap[key] || 0) + delta;
+          }
           renderAll();
           toast('Lançamento removido.');
         } catch(e){
@@ -775,6 +858,7 @@ body {
           return;
         }
         try {
+          justProcessedProdCodigos[codigo] = true;
           var result = await db.from('products').delete().eq('codigo', codigo);
           if (result.error) throw result.error;
           products = products.filter(function(p){ return p.codigo !== codigo; });
@@ -782,7 +866,10 @@ body {
           toast('Produto removido.');
         } catch(e){
           console.error(e);
-          toast('Não consegui excluir o produto: ' + (e.message || e), true);
+          var msg = (e.code === '23503')
+            ? 'Este produto tem movimentações registradas (mesmo fora dos lançamentos recentes) e não pode ser excluído.'
+            : 'Não consegui excluir o produto: ' + (e.message || e);
+          toast(msg, true);
         }
       });
     });
@@ -844,8 +931,13 @@ body {
       motivo: document.getElementById('mov-motivo').value,
       obs: document.getElementById('mov-obs').value
     };
-    movements.push(mv);
-    await saveMovements();
+    var ok = await insertMovement(mv);
+    if (!ok) return;
+    movements.unshift(mv);
+    if (movements.length > MOV_FETCH_LIMIT) movements.length = MOV_FETCH_LIMIT;
+    var key = saldoKey(mv.codigo, mv.tamanho);
+    var delta = mv.tipo === 'Entrada' ? qtd : -qtd;
+    saldoMap[key] = (saldoMap[key] || 0) + delta;
     document.getElementById('mov-qtd').value = 1;
     document.getElementById('mov-motivo').value = '';
     document.getElementById('mov-obs').value = '';
