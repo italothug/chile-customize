@@ -664,11 +664,38 @@ html, body{margin:0;padding:0;background:#14161c;}
     return cands[0];
   }
 
+  function estoqueDe(codigo, tamanho){ return stockFor(codigo, tamanho).saldo; }
+
+  function grupoTemEstoque(key){
+    return products.some(function(p){
+      return movGroupKeyFor(p) === key && p.tamanhos.some(function(t){ return estoqueDe(p.codigo, t) > 0; });
+    });
+  }
+
+  function corTemEstoque(key, cor){
+    return products.some(function(p){
+      return movGroupKeyFor(p) === key && p.cor === cor && p.tamanhos.some(function(t){ return estoqueDe(p.codigo, t) > 0; });
+    });
+  }
+
+  function produtoPorTamanho(t){
+    return candidateProdutos().filter(function(p){ return p.tamanhos.indexOf(t) !== -1; })[0];
+  }
+
+  function tamanhosComEstoque(){
+    return tamanhosDisponiveis().filter(function(t){
+      var p = produtoPorTamanho(t);
+      return p && estoqueDe(p.codigo, t) > 0;
+    });
+  }
+
   function renderMovModeloBlocks(){
     var wrap = document.getElementById('mov-modelo-blocks');
-    var groups = getMovGroups();
+    var groups = getMovGroups().filter(function(g){ return movTipo !== 'Saída' || grupoTemEstoque(g.key); });
     if (!movGrupoSel || !groups.some(function(g){ return g.key === movGrupoSel; })) movGrupoSel = groups[0] ? groups[0].key : null;
-    if (!groups.length){ wrap.innerHTML = '<div class="eq-block-empty">Cadastre um produto na aba Produtos primeiro.</div>'; }
+    if (!groups.length){
+      wrap.innerHTML = '<div class="eq-block-empty">' + (movTipo === 'Saída' ? 'Nenhum produto com estoque disponível para saída.' : 'Cadastre um produto na aba Produtos primeiro.') + '</div>';
+    }
     else {
       wrap.innerHTML = groups.map(function(g){
         return '<button type="button" class="eq-block-btn' + (g.key === movGrupoSel ? ' active' : '') + '" data-modelo="' + g.key.replace(/"/g,'&quot;') + '">' + g.label + '</button>';
@@ -695,6 +722,7 @@ html, body{margin:0;padding:0;background:#14161c;}
       if (movGroupKeyFor(p) !== movGrupoSel) return;
       if (p.cor && p.cor !== '-' && cores.indexOf(p.cor) === -1) cores.push(p.cor);
     });
+    if (movTipo === 'Saída') cores = cores.filter(function(c){ return corTemEstoque(movGrupoSel, c); });
     if (!cores.length){
       wrapOuter.style.display = 'none';
       movCorSel = null;
@@ -718,8 +746,14 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   function renderMovTamanhoBlocks(){
     var wrap = document.getElementById('mov-tamanho-blocks');
-    var tamanhos = tamanhosDisponiveis().sort(function(a,b){ return sizeRank(a)-sizeRank(b); });
-    if (!tamanhos.length){ wrap.innerHTML = '<div class="eq-block-empty">Selecione um modelo válido.</div>'; movTamanhoSel = null; return; }
+    var qtdInput = document.getElementById('mov-qtd');
+    var tamanhos = (movTipo === 'Saída' ? tamanhosComEstoque() : tamanhosDisponiveis()).sort(function(a,b){ return sizeRank(a)-sizeRank(b); });
+    if (!tamanhos.length){
+      wrap.innerHTML = '<div class="eq-block-empty">' + (movTipo === 'Saída' ? 'Sem estoque disponível para saída neste produto.' : 'Selecione um modelo válido.') + '</div>';
+      movTamanhoSel = null;
+      qtdInput.removeAttribute('max');
+      return;
+    }
     if (!movTamanhoSel || tamanhos.indexOf(movTamanhoSel) === -1) movTamanhoSel = tamanhos[0];
     wrap.innerHTML = tamanhos.map(function(t){
       return '<button type="button" class="eq-block-btn' + (t === movTamanhoSel ? ' active' : '') + '" data-tamanho="' + t.replace(/"/g,'&quot;') + '">' + t + '</button>';
@@ -731,6 +765,14 @@ html, body{margin:0;padding:0;background:#14161c;}
         updateMovValorField();
       });
     });
+    if (movTipo === 'Saída'){
+      var p = currentMovProduto();
+      var disponivel = p ? estoqueDe(p.codigo, movTamanhoSel) : 0;
+      qtdInput.setAttribute('max', disponivel);
+      if (Number(qtdInput.value) > disponivel) qtdInput.value = disponivel;
+    } else {
+      qtdInput.removeAttribute('max');
+    }
   }
 
   function updateMovValorField(){
@@ -910,12 +952,18 @@ html, body{margin:0;padding:0;background:#14161c;}
     movTipo = 'Entrada';
     document.getElementById('btn-entrada').classList.add('on');
     document.getElementById('btn-saida').classList.remove('on');
+    renderMovModeloBlocks();
+    renderMovCorBlocks();
+    renderMovTamanhoBlocks();
     updateMovValorField();
   });
   document.getElementById('btn-saida').addEventListener('click', function(){
     movTipo = 'Saída';
     document.getElementById('btn-saida').classList.add('on');
     document.getElementById('btn-entrada').classList.remove('on');
+    renderMovModeloBlocks();
+    renderMovCorBlocks();
+    renderMovTamanhoBlocks();
     updateMovValorField();
   });
 
@@ -923,11 +971,16 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   document.getElementById('eq-mov-submit').addEventListener('click', async function(){
     var p = currentMovProduto();
-    if (!p){ toast('Selecione o modelo (e a cor, se houver) do produto.', true); return; }
+    if (!p){ toast(movTipo === 'Saída' ? 'Não há produto com estoque para dar saída.' : 'Selecione o modelo (e a cor, se houver) do produto.', true); return; }
     var tamanho = movTamanhoSel;
     if (!tamanho){ toast('Selecione o tamanho do produto.', true); return; }
     var qtd = Number(document.getElementById('mov-qtd').value);
     if (!qtd || qtd <= 0){ toast('Informe uma quantidade válida.', true); return; }
+    if (movTipo === 'Saída'){
+      var disponivel = estoqueDe(p.codigo, tamanho);
+      if (disponivel <= 0){ toast('Sem estoque de ' + p.codigo + ' (tamanho ' + tamanho + ') para dar saída.', true); return; }
+      if (qtd > disponivel){ toast('Estoque insuficiente: só há ' + disponivel + ' unidade(s) de ' + p.codigo + ' (tamanho ' + tamanho + ').', true); return; }
+    }
     var valor = Number(document.getElementById('mov-valor').value) || 0;
     var mv = {
       id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
