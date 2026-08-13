@@ -90,6 +90,14 @@
   #estoque-root select,
   #estoque-root textarea{color:var(--tx) !important;}
   #estoque-root button{font-family:var(--sans);}
+  #eq-login-gate{max-width:340px;margin:60px auto;background:var(--ink-2);border:1px solid var(--line-soft);border-radius:14px;padding:26px;font-family:var(--sans);}
+  #eq-login-gate h2{font-family:var(--serif);color:var(--tx);margin:0 0 4px;font-size:20px;}
+  #eq-login-gate p.eq-sub{color:var(--tx-3);font-size:13px;margin:0 0 18px;}
+  #eq-login-gate input{width:100%;background:var(--ink-3);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:10px 12px;font-size:13px;font-family:var(--sans);margin-bottom:10px;box-sizing:border-box;}
+  #eq-login-gate input:focus{outline:none;border-color:var(--pink);}
+  #eq-login-gate button{width:100%;font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;background:var(--pink);color:#fff;border:none;border-radius:8px;padding:12px;cursor:pointer;}
+  #login-erro{color:var(--pink);font-size:12px;margin-top:10px;display:none;}
+  #logout-btn{background:none;border:none;color:var(--tx-3);font-size:11px;cursor:pointer;text-decoration:underline;padding:0;font-family:var(--sans);}
   html,
 body {
   margin: 0;
@@ -108,15 +116,24 @@ body {
   color: var(--tx);
 }
 </style>
-<div id="estoque-root">
+<div id="eq-login-gate">
+  <h2>Entrar</h2>
+  <p class="eq-sub">Acesso restrito ao controle de estoque.</p>
+  <input type="email" id="login-email" placeholder="seu@email.com" autocomplete="username">
+  <input type="password" id="login-senha" placeholder="Senha" autocomplete="current-password">
+  <button type="button" id="login-btn">Entrar</button>
+  <p id="login-erro"></p>
+</div>
+<div id="estoque-root" style="display:none;">
   <div class="eq-head">
     <p class="eq-eyebrow">Controle de estoque</p>
     <h1 class="eq-title">Chile Customize</h1>
     <p class="eq-sub">Ecobags e blusas DTF — entradas, saídas e saldo em tempo real</p>
   </div>
 
-  <div style="padding:10px 26px;border-bottom:1px solid var(--line-soft);font-size:11px;color:var(--tx-3);">
-    ☁️ Dados sincronizados online pelo Supabase.
+  <div style="padding:10px 26px;border-bottom:1px solid var(--line-soft);font-size:11px;color:var(--tx-3);display:flex;justify-content:space-between;align-items:center;">
+    <span>☁️ Dados sincronizados online pelo Supabase.</span>
+    <button type="button" id="logout-btn">Sair</button>
   </div>
   <div class="eq-tabs" role="tablist">
     <button class="eq-tab active" data-tab="painel">Painel</button>
@@ -286,15 +303,66 @@ body {
     setTimeout(function(){ t.className = 'eq-toast'; }, 2600);
   }
 
-  async function loadData(){
+  var loginGate = document.getElementById('eq-login-gate');
+  var loginErro = document.getElementById('login-erro');
+
+  function showApp(){
+    loginGate.style.display = 'none';
+    root.style.display = '';
+    loadData();
+  }
+
+  function showLogin(msg){
+    loginGate.style.display = '';
+    root.style.display = 'none';
+    if (msg){ loginErro.textContent = msg; loginErro.style.display = ''; }
+  }
+
+  async function checkAuthAndInit(){
     if (!db){
-      products = [];
-      movements = [];
-      renderAll();
-      toast('Configure SUPABASE_URL e SUPABASE_KEY no início do arquivo index.html.', true);
+      loginGate.innerHTML = '<h2>Configuração pendente</h2><p class="eq-sub">Preencha SUPABASE_URL e SUPABASE_KEY no início do arquivo index.html.</p>';
+      loginGate.style.display = '';
+      root.style.display = 'none';
       return;
     }
+    try {
+      var sessionResult = await db.auth.getSession();
+      var session = sessionResult.data && sessionResult.data.session;
+      if (session) showApp(); else showLogin();
+    } catch(e){
+      showLogin();
+    }
+  }
 
+  if (db){
+    db.auth.onAuthStateChange(function(event){
+      if (event === 'SIGNED_OUT') showLogin();
+    });
+    document.getElementById('login-btn').addEventListener('click', doLogin);
+    document.getElementById('login-senha').addEventListener('keydown', function(e){
+      if (e.key === 'Enter') doLogin();
+    });
+    document.getElementById('logout-btn').addEventListener('click', async function(){
+      await db.auth.signOut();
+      showLogin();
+    });
+  }
+
+  async function doLogin(){
+    var email = document.getElementById('login-email').value.trim();
+    var senha = document.getElementById('login-senha').value;
+    loginErro.style.display = 'none';
+    if (!email || !senha){ showLogin('Preencha e-mail e senha.'); return; }
+    try {
+      var result = await db.auth.signInWithPassword({email: email, password: senha});
+      if (result.error) throw result.error;
+      showApp();
+    } catch(e){
+      showLogin('E-mail ou senha incorretos.');
+    }
+  }
+
+  async function loadData(){
     try {
       var prodResult = await db.from('products').select('*').order('codigo');
       if (prodResult.error) throw prodResult.error;
@@ -811,6 +879,6 @@ body {
     toast('Produto ' + codigo + ' cadastrado.');
   });
 
-  loadData();
+  checkAuthAndInit();
 })();
 </script>
