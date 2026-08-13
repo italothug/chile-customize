@@ -471,15 +471,15 @@ body {
     }
   }
 
-  async function saveProducts(){
+  async function upsertProduct(p){
     try {
-      products.forEach(function(p){ justProcessedProdCodigos[p.codigo] = true; });
-      var result = await db.from('products').upsert(products, {onConflict:'codigo'});
+      justProcessedProdCodigos[p.codigo] = true;
+      var result = await db.from('products').upsert([p], {onConflict:'codigo'});
       if (result.error) throw result.error;
       return true;
     } catch(e){
       console.error(e);
-      toast('Não consegui salvar os produtos: ' + (e.message || e), true);
+      toast('Não consegui salvar o produto: ' + (e.message || e), true);
       return false;
     }
   }
@@ -844,7 +844,8 @@ body {
         var venda = Number(row.querySelector('[data-edit="venda"]').value) || 0;
         if (!modelo){ toast('O modelo não pode ficar vazio.', true); return; }
         p.modelo = modelo; p.cor = cor; p.tamanhos = tamanhos; p.min = min; p.custo = custo; p.venda = venda;
-        await saveProducts();
+        var ok = await upsertProduct(p);
+        if (!ok) return;
         editingCodigo = null;
         renderAll();
         toast('Produto ' + codigo + ' atualizado.');
@@ -957,13 +958,15 @@ body {
       toast('Já existe um produto com esse código: ' + codigo, true);
       return;
     }
-    products.push({
+    var novoProduto = {
       codigo: codigo, categoria: categoria, modelo: modelo, cor: cor, tamanhos: tamanhos,
       min: Number(document.getElementById('p-min').value) || 0,
       custo: Number(document.getElementById('p-custo').value) || 0,
       venda: Number(document.getElementById('p-venda').value) || 0
-    });
-    await saveProducts();
+    };
+    var ok = await upsertProduct(novoProduto);
+    if (!ok) return;
+    products.push(novoProduto);
     document.getElementById('p-modelo').value = '';
     document.getElementById('p-cor').value = '';
     document.getElementById('p-tamanhos').value = '';
