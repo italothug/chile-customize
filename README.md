@@ -18,8 +18,9 @@ Projeto web de controle de estoque preparado para publicação no Vercel.
 5. O diretório de saída pode ser `public`.
 6. Publique.
 
-## Importante sobre os dados
+## Dados e auditoria
 
-Nesta versão, os produtos e movimentações são salvos no `localStorage` do navegador. Isso deixa o sistema funcional no Vercel sem banco de dados, mas os dados não são compartilhados entre dispositivos/navegadores.
+O sistema usa Supabase com autenticação, RLS, movimentações via RPC e sincronização Realtime. Movimentações não são apagadas: cancelamentos registram data, usuário e motivo. Produtos são arquivados/reativados para preservar o histórico.
 
-Para transformar o sistema em uma aplicação realmente online, a próxima etapa é trocar o `localStorage` por um banco de dados (por exemplo, Supabase) e, se necessário, adicionar autenticação.
+As migrations formais ficam em `supabase/migrations`. Nunca coloque uma chave `service_role` no frontend.
+
