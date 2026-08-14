@@ -157,7 +157,7 @@ html, body{margin:0;padding:0;background:#14161c;}
 
     <div class="eq-panel active" id="panel-painel">
       <div class="eq-cards" id="eq-cards"></div>
-      <p style="font-size:11px;color:var(--tx-3);margin:-14px 0 20px;">* Lucro estimado com base no custo cadastrado atualmente para cada produto.</p>
+      <p style="font-size:11px;color:var(--tx-3);margin:-14px 0 20px;">* Lucro estimado com base no custo registrado no momento de cada venda.</p>
       <div class="eq-group-tabs" id="eq-group-tabs"></div>
       <div class="eq-color-cols" id="eq-color-cols"></div>
     </div>
@@ -274,7 +274,7 @@ html, body{margin:0;padding:0;background:#14161c;}
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0"></script>
 <script>
 (function(){
   // PREENCHA SOMENTE COM A PROJECT URL E A PUBLISHABLE/ANON KEY DO SUPABASE.
@@ -293,6 +293,23 @@ html, body{margin:0;padding:0;background:#14161c;}
   var root = document.getElementById('estoque-root');
 
   function slug(s){ return (s||'').toString().trim().toUpperCase().replace(/\s+/g,'-').replace(/[ÁÀÂÃ]/g,'A').replace(/[ÉÊ]/g,'E').replace(/[ÍÎ]/g,'I').replace(/[ÓÔÕ]/g,'O').replace(/[ÚÜ]/g,'U').replace(/Ç/g,'C'); }
+  function esc(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  function localDateValue(){
+    var now = new Date();
+    var offsetMs = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offsetMs).toISOString().slice(0,10);
+  }
+  function newMovementId(){
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    return Date.now() + '-' + Math.random().toString(36).slice(2,12);
+  }
 
   function seedProducts(){
     var cores = ['Preto','Branco','Off White'];
@@ -329,8 +346,6 @@ html, body{margin:0;padding:0;background:#14161c;}
   var loginGate = document.getElementById('eq-login-gate');
   var loginErro = document.getElementById('login-erro');
   var realtimeChannel = null;
-  var justProcessedMovIds = {};
-  var justProcessedProdCodigos = {};
 
   function showApp(){
     loginGate.style.display = 'none';
@@ -350,6 +365,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     if (realtimeChannel || !db) return;
     realtimeChannel = db.channel('estoque-sync')
       .on('postgres_changes', {event:'INSERT', schema:'public', table:'movements'}, handleRealtimeMovInsert)
+      .on('postgres_changes', {event:'UPDATE', schema:'public', table:'movements'}, handleRealtimeMovUpdate)
       .on('postgres_changes', {event:'DELETE', schema:'public', table:'movements'}, handleRealtimeMovDelete)
       .on('postgres_changes', {event:'INSERT', schema:'public', table:'products'}, handleRealtimeProdUpsert)
       .on('postgres_changes', {event:'UPDATE', schema:'public', table:'products'}, handleRealtimeProdUpsert)
@@ -364,12 +380,10 @@ html, body{margin:0;padding:0;background:#14161c;}
   function handleRealtimeMovInsert(payload){
     var mv = payload.new;
     var id = String(mv.id);
-    if (justProcessedMovIds[id]){ delete justProcessedMovIds[id]; return; }
     if (!mv.tamanho) mv.tamanho = '-';
-    if (!movements.some(function(m){ return String(m.id) === id; })){
-      movements.unshift(mv);
-      if (movements.length > MOV_FETCH_LIMIT) movements.length = MOV_FETCH_LIMIT;
-    }
+    if (mv.cancelado_em || movements.some(function(m){ return String(m.id) === id; })) return;
+    movements.unshift(mv);
+    if (movements.length > MOV_FETCH_LIMIT) movements.length = MOV_FETCH_LIMIT;
     var key = saldoKey(mv.codigo, mv.tamanho);
     var delta = mv.tipo === 'Entrada' ? Number(mv.qtd) : -Number(mv.qtd);
     saldoMap[key] = (saldoMap[key] || 0) + delta;
@@ -381,10 +395,18 @@ html, body{margin:0;padding:0;background:#14161c;}
     toast('🔄 Novo lançamento sincronizado de outro aparelho.');
   }
 
+  function handleRealtimeMovUpdate(){
+    loadData();
+    toast('🔄 Histórico e estoque sincronizados de outro aparelho.');
+  }
+
   function handleRealtimeMovDelete(payload){
-    var mv = payload.old;
-    var id = String(mv.id);
-    if (justProcessedMovIds[id]){ delete justProcessedMovIds[id]; return; }
+    var mv = payload.old || {};
+    var id = mv.id == null ? null : String(mv.id);
+    if (!id || !mv.codigo || !mv.tamanho || !mv.tipo || mv.qtd == null){
+      loadData();
+      return;
+    }
     movements = movements.filter(function(m){ return String(m.id) !== id; });
     var key = saldoKey(mv.codigo, mv.tamanho);
     var delta = mv.tipo === 'Entrada' ? -Number(mv.qtd) : Number(mv.qtd);
@@ -399,7 +421,6 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   function handleRealtimeProdUpsert(payload){
     var p = ensureProductShape(payload.new);
-    if (justProcessedProdCodigos[p.codigo]){ delete justProcessedProdCodigos[p.codigo]; return; }
     var idx = products.findIndex(function(x){ return x.codigo === p.codigo; });
     if (idx >= 0) products[idx] = p; else products.push(p);
     renderAll();
@@ -408,7 +429,6 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   function handleRealtimeProdDelete(payload){
     var codigo = payload.old.codigo;
-    if (justProcessedProdCodigos[codigo]){ delete justProcessedProdCodigos[codigo]; return; }
     products = products.filter(function(p){ return p.codigo !== codigo; });
     renderAll();
     toast('🔄 Um produto foi removido em outro aparelho.');
@@ -476,14 +496,6 @@ html, body{margin:0;padding:0;background:#14161c;}
       if (prodResult.error) throw prodResult.error;
       products = (prodResult.data || []).map(ensureProductShape);
 
-      // Mantém o catálogo inicial do projeto quando o banco ainda está vazio.
-      if (!products.length){
-        products = seedProducts();
-        var seedResult = await db.from('products').insert(products).select();
-        if (seedResult.error) throw seedResult.error;
-        products = (seedResult.data || products).map(ensureProductShape);
-      }
-
       // Saldo por produto/tamanho vem pronto do banco (view stock_balances),
       // em vez de baixar toda a história de movimentações pra somar aqui.
       var balResult = await db.from('stock_balances').select('*');
@@ -501,9 +513,9 @@ html, body{margin:0;padding:0;background:#14161c;}
       totalLucro = Number(salesResult.data && salesResult.data.lucro_estimado) || 0;
 
       // Só os lançamentos mais recentes são baixados (histórico completo fica no banco).
-      var movResult = await db.from('movements').select('*').order('ts', {ascending:false}).limit(MOV_FETCH_LIMIT);
+      var movResult = await db.from('movements').select('*').order('ts', {ascending:false}).limit(MOV_FETCH_LIMIT * 2);
       if (movResult.error) throw movResult.error;
-      movements = movResult.data || [];
+      movements = (movResult.data || []).filter(function(mv){ return !mv.cancelado_em; }).slice(0, MOV_FETCH_LIMIT);
       movements.forEach(function(mv){ if (!mv.tamanho) mv.tamanho = '-'; });
       renderAll();
     } catch(e){
@@ -520,7 +532,6 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   async function upsertProduct(p){
     try {
-      justProcessedProdCodigos[p.codigo] = true;
       var result = await db.from('products').upsert([p], {onConflict:'codigo'});
       if (result.error) throw result.error;
       return true;
@@ -533,8 +544,6 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   async function insertMovement(mv){
   try {
-    justProcessedMovIds[String(mv.id)] = true;
-
     var result = await db.rpc('registrar_movimento', {
       p_id: String(mv.id),
       p_ts: Number(mv.ts),
@@ -555,8 +564,6 @@ html, body{margin:0;padding:0;background:#14161c;}
     return true;
 
   } catch(e){
-    delete justProcessedMovIds[String(mv.id)];
-
     console.error(e);
 
     toast(
@@ -635,7 +642,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     var groups = getGroups();
     if (!painelGrupoAtivo || groups.indexOf(painelGrupoAtivo) === -1) painelGrupoAtivo = groups[0] || null;
     wrap.innerHTML = groups.map(function(g){
-      return '<button type="button" class="eq-group-tab' + (g === painelGrupoAtivo ? ' active' : '') + '" data-group="' + g.replace(/"/g,'&quot;') + '">' + g + '</button>';
+      return '<button type="button" class="eq-group-tab' + (g === painelGrupoAtivo ? ' active' : '') + '" data-group="' + esc(g) + '">' + esc(g) + '</button>';
     }).join('');
     Array.prototype.forEach.call(wrap.querySelectorAll('[data-group]'), function(btn){
       btn.addEventListener('click', function(){
@@ -674,11 +681,11 @@ html, body{margin:0;padding:0;background:#14161c;}
     wrap.innerHTML = cols.map(function(col){
       var rowsHtml = col.items.map(function(i){
         var alert = i.saldo <= i.min;
-        return '<div class="eq-size-row"><span class="eq-size-tag">' + i.tamanho + '</span><span class="eq-size-box' + (alert ? ' alert' : '') + '">' + i.saldo + '</span></div>';
+        return '<div class="eq-size-row"><span class="eq-size-tag">' + esc(i.tamanho) + '</span><span class="eq-size-box' + (alert ? ' alert' : '') + '">' + esc(i.saldo) + '</span></div>';
       }).join('');
       return '<div class="eq-color-col">' +
-        (col.cor ? '<p class="eq-color-label">' + col.cor + '</p>' : '') +
-        '<div class="eq-total-box">' + col.total + '</div>' +
+        (col.cor ? '<p class="eq-color-label">' + esc(col.cor) + '</p>' : '') +
+        '<div class="eq-total-box">' + esc(col.total) + '</div>' +
         rowsHtml +
       '</div>';
     }).join('');
@@ -763,7 +770,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     }
     else {
       wrap.innerHTML = groups.map(function(g){
-        return '<button type="button" class="eq-block-btn' + (g.key === movGrupoSel ? ' active' : '') + '" data-modelo="' + g.key.replace(/"/g,'&quot;') + '">' + g.label + '</button>';
+        return '<button type="button" class="eq-block-btn' + (g.key === movGrupoSel ? ' active' : '') + '" data-modelo="' + esc(g.key) + '">' + esc(g.label) + '</button>';
       }).join('');
       Array.prototype.forEach.call(wrap.querySelectorAll('[data-modelo]'), function(btn){
         btn.addEventListener('click', function(){
@@ -796,7 +803,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     wrapOuter.style.display = '';
     if (!movCorSel || cores.indexOf(movCorSel) === -1) movCorSel = cores[0];
     wrap.innerHTML = cores.map(function(c){
-      return '<button type="button" class="eq-block-btn' + (c === movCorSel ? ' active' : '') + '" data-cor="' + c.replace(/"/g,'&quot;') + '">' + c + '</button>';
+      return '<button type="button" class="eq-block-btn' + (c === movCorSel ? ' active' : '') + '" data-cor="' + esc(c) + '">' + esc(c) + '</button>';
     }).join('');
     Array.prototype.forEach.call(wrap.querySelectorAll('[data-cor]'), function(btn){
       btn.addEventListener('click', function(){
@@ -821,7 +828,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     }
     if (!movTamanhoSel || tamanhos.indexOf(movTamanhoSel) === -1) movTamanhoSel = tamanhos[0];
     wrap.innerHTML = tamanhos.map(function(t){
-      return '<button type="button" class="eq-block-btn' + (t === movTamanhoSel ? ' active' : '') + '" data-tamanho="' + t.replace(/"/g,'&quot;') + '">' + t + '</button>';
+      return '<button type="button" class="eq-block-btn' + (t === movTamanhoSel ? ' active' : '') + '" data-tamanho="' + esc(t) + '">' + esc(t) + '</button>';
     }).join('');
     Array.prototype.forEach.call(wrap.querySelectorAll('[data-tamanho]'), function(btn){
       btn.addEventListener('click', function(){
@@ -861,14 +868,14 @@ html, body{margin:0;padding:0;background:#14161c;}
     if (!sorted.length){ body.innerHTML = '<tr><td colspan="8"><div class="eq-empty">Nenhum lançamento ainda.</div></td></tr>'; return; }
     body.innerHTML = sorted.map(function(mv){
       return '<tr>' +
-        '<td class="eq-mono">' + fmtDate(mv.data) + '</td>' +
-        '<td class="eq-mono">' + mv.codigo + '</td>' +
-        '<td class="eq-mono">' + (mv.tamanho || '-') + '</td>' +
-        '<td><span class="eq-badge ' + (mv.tipo==='Entrada'?'ok':'repor') + '">' + mv.tipo + '</span></td>' +
-        '<td class="eq-mono">' + mv.qtd + '</td>' +
-        '<td class="eq-mono">' + fmtBRL(mv.valor) + '</td>' +
-        '<td>' + (mv.motivo||'') + '</td>' +
-        '<td><button class="eq-btn-danger" data-del="' + mv.id + '" title="Excluir lançamento" aria-label="Excluir lançamento"><i class="ti ti-x"></i>✕</button></td>' +
+        '<td class="eq-mono">' + esc(fmtDate(mv.data)) + '</td>' +
+        '<td class="eq-mono">' + esc(mv.codigo) + '</td>' +
+        '<td class="eq-mono">' + esc(mv.tamanho || '-') + '</td>' +
+        '<td><span class="eq-badge ' + (mv.tipo==='Entrada'?'ok':'repor') + '">' + esc(mv.tipo) + '</span></td>' +
+        '<td class="eq-mono">' + esc(mv.qtd) + '</td>' +
+        '<td class="eq-mono">' + esc(fmtBRL(mv.valor)) + '</td>' +
+        '<td>' + esc(mv.motivo||'') + '</td>' +
+        '<td><button class="eq-btn-danger" data-del="' + esc(mv.id) + '" title="Cancelar lançamento" aria-label="Cancelar lançamento"><i class="ti ti-x"></i>✕</button></td>' +
       '</tr>';
     }).join('');
     Array.prototype.forEach.call(body.querySelectorAll('[data-del]'), function(btn){
@@ -885,9 +892,6 @@ html, body{margin:0;padding:0;background:#14161c;}
   }
 
   try {
-
-    justProcessedMovIds[id] = true;
-
     var result = await db.rpc('cancelar_movimento', {
       p_id: String(id)
     });
@@ -896,47 +900,10 @@ html, body{margin:0;padding:0;background:#14161c;}
       throw result.error;
     }
 
-    /*
-      Atualiza a lista local
-    */
-    movements = movements.filter(function(m){
-      return String(m.id) !== id;
-    });
-
-    /*
-      Reverte o saldo localmente
-    */
-    var key = saldoKey(mv.codigo, mv.tamanho);
-
-    var delta =
-      mv.tipo === 'Entrada'
-        ? -Number(mv.qtd)
-        : Number(mv.qtd);
-
-    saldoMap[key] = (saldoMap[key] || 0) + delta;
-
-    /*
-      Reverte os totais financeiros
-    */
-    if (mv.tipo === 'Saída') {
-
-      totalVendas -=
-        Number(mv.valor || 0) *
-        Number(mv.qtd || 0);
-
-      totalLucro -=
-        (Number(mv.valor || 0) - custoDe(mv.codigo)) *
-        Number(mv.qtd || 0);
-    }
-
-    renderAll();
-
-    toast('Lançamento cancelado.');
+    await loadData();
+    toast('Lançamento cancelado. O histórico foi preservado no banco.');
 
   } catch(e) {
-
-    delete justProcessedMovIds[id];
-
     console.error(e);
 
     toast(
@@ -957,32 +924,32 @@ html, body{margin:0;padding:0;background:#14161c;}
     body.innerHTML = products.map(function(p){
       if (p.codigo === editingCodigo){
         return '<tr>' +
-          '<td class="eq-mono">' + p.codigo + '</td>' +
-          '<td>' + p.categoria + '</td>' +
-          '<td><input class="eq-inline-input" data-edit="modelo" value="' + p.modelo.replace(/"/g,'&quot;') + '"></td>' +
-          '<td><input class="eq-inline-input" data-edit="cor" value="' + p.cor.replace(/"/g,'&quot;') + '"></td>' +
-          '<td><input class="eq-inline-input" data-edit="tamanhos" value="' + p.tamanhos.join(', ') + '"></td>' +
-          '<td><input class="eq-inline-input" data-edit="min" type="number" min="0" step="1" value="' + p.min + '"></td>' +
-          '<td><input class="eq-inline-input" data-edit="custo" type="number" min="0" step="0.01" value="' + p.custo + '"></td>' +
-          '<td><input class="eq-inline-input" data-edit="venda" type="number" min="0" step="0.01" value="' + p.venda + '"></td>' +
+          '<td class="eq-mono">' + esc(p.codigo) + '</td>' +
+          '<td>' + esc(p.categoria) + '</td>' +
+          '<td><input class="eq-inline-input" data-edit="modelo" value="' + esc(p.modelo) + '"></td>' +
+          '<td><input class="eq-inline-input" data-edit="cor" value="' + esc(p.cor) + '"></td>' +
+          '<td><input class="eq-inline-input" data-edit="tamanhos" value="' + esc(p.tamanhos.join(', ')) + '"></td>' +
+          '<td><input class="eq-inline-input" data-edit="min" type="number" min="0" step="1" value="' + esc(p.min) + '"></td>' +
+          '<td><input class="eq-inline-input" data-edit="custo" type="number" min="0" step="0.01" value="' + esc(p.custo) + '"></td>' +
+          '<td><input class="eq-inline-input" data-edit="venda" type="number" min="0" step="0.01" value="' + esc(p.venda) + '"></td>' +
           '<td class="eq-row-actions">' +
-            '<button class="eq-btn-ghost" data-saveprod="' + p.codigo + '">Salvar</button>' +
-            '<button class="eq-btn-danger" data-cancelprod="' + p.codigo + '" title="Cancelar">✕</button>' +
+            '<button class="eq-btn-ghost" data-saveprod="' + esc(p.codigo) + '">Salvar</button>' +
+            '<button class="eq-btn-danger" data-cancelprod="' + esc(p.codigo) + '" title="Cancelar">✕</button>' +
           '</td>' +
         '</tr>';
       }
       return '<tr>' +
-        '<td class="eq-mono">' + p.codigo + '</td>' +
-        '<td>' + p.categoria + '</td>' +
-        '<td>' + p.modelo + '</td>' +
-        '<td>' + p.cor + '</td>' +
-        '<td class="eq-mono">' + p.tamanhos.join(', ') + '</td>' +
-        '<td class="eq-mono">' + p.min + '</td>' +
-        '<td class="eq-mono">' + fmtBRL(p.custo) + '</td>' +
-        '<td class="eq-mono">' + fmtBRL(p.venda) + '</td>' +
+        '<td class="eq-mono">' + esc(p.codigo) + '</td>' +
+        '<td>' + esc(p.categoria) + '</td>' +
+        '<td>' + esc(p.modelo) + '</td>' +
+        '<td>' + esc(p.cor) + '</td>' +
+        '<td class="eq-mono">' + esc(p.tamanhos.join(', ')) + '</td>' +
+        '<td class="eq-mono">' + esc(p.min) + '</td>' +
+        '<td class="eq-mono">' + esc(fmtBRL(p.custo)) + '</td>' +
+        '<td class="eq-mono">' + esc(fmtBRL(p.venda)) + '</td>' +
         '<td class="eq-row-actions">' +
-          '<button class="eq-btn-ghost" data-editprod="' + p.codigo + '" title="Editar produto">Editar</button>' +
-          '<button class="eq-btn-danger" data-delprod="' + p.codigo + '" title="Excluir produto" aria-label="Excluir produto">✕</button>' +
+          '<button class="eq-btn-ghost" data-editprod="' + esc(p.codigo) + '" title="Editar produto">Editar</button>' +
+          '<button class="eq-btn-danger" data-delprod="' + esc(p.codigo) + '" title="Excluir produto" aria-label="Excluir produto">✕</button>' +
         '</td>' +
       '</tr>';
     }).join('');
@@ -1013,9 +980,18 @@ html, body{margin:0;padding:0;background:#14161c;}
         var custo = Number(row.querySelector('[data-edit="custo"]').value) || 0;
         var venda = Number(row.querySelector('[data-edit="venda"]').value) || 0;
         if (!modelo){ toast('O modelo não pode ficar vazio.', true); return; }
-        p.modelo = modelo; p.cor = cor; p.tamanhos = tamanhos; p.min = min; p.custo = custo; p.venda = venda;
-        var ok = await upsertProduct(p);
+        var atualizado = Object.assign({}, p, {
+          modelo: modelo,
+          cor: cor,
+          tamanhos: tamanhos,
+          min: min,
+          custo: custo,
+          venda: venda
+        });
+        var ok = await upsertProduct(atualizado);
         if (!ok) return;
+        var productIndex = products.findIndex(function(x){ return x.codigo === codigo; });
+        if (productIndex >= 0) products[productIndex] = atualizado;
         editingCodigo = null;
         renderAll();
         toast('Produto ' + codigo + ' atualizado.');
@@ -1029,7 +1005,6 @@ html, body{margin:0;padding:0;background:#14161c;}
           return;
         }
         try {
-          justProcessedProdCodigos[codigo] = true;
           var result = await db.from('products').delete().eq('codigo', codigo);
           if (result.error) throw result.error;
           products = products.filter(function(p){ return p.codigo !== codigo; });
@@ -1086,7 +1061,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     updateMovValorField();
   });
 
-  document.getElementById('mov-data').value = new Date().toISOString().slice(0,10);
+  document.getElementById('mov-data').value = localDateValue();
 
   document.getElementById('eq-mov-submit').addEventListener('click', async function(){
     var p = currentMovProduto();
@@ -1102,7 +1077,7 @@ html, body{margin:0;padding:0;background:#14161c;}
     }
     var valor = Number(document.getElementById('mov-valor').value) || 0;
     var mv = {
-      id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+      id: newMovementId(),
       ts: Date.now(),
       data: document.getElementById('mov-data').value,
       codigo: p.codigo,
@@ -1115,14 +1090,17 @@ html, body{margin:0;padding:0;background:#14161c;}
     };
     var ok = await insertMovement(mv);
     if (!ok) return;
-    movements.unshift(mv);
-    if (movements.length > MOV_FETCH_LIMIT) movements.length = MOV_FETCH_LIMIT;
-    var key = saldoKey(mv.codigo, mv.tamanho);
-    var delta = mv.tipo === 'Entrada' ? qtd : -qtd;
-    saldoMap[key] = (saldoMap[key] || 0) + delta;
-    if (mv.tipo === 'Saída'){
-      totalVendas += valor * qtd;
-      totalLucro += (valor - custoDe(p.codigo)) * qtd;
+    var alreadySynced = movements.some(function(item){ return String(item.id) === String(mv.id); });
+    if (!alreadySynced){
+      movements.unshift(mv);
+      if (movements.length > MOV_FETCH_LIMIT) movements.length = MOV_FETCH_LIMIT;
+      var key = saldoKey(mv.codigo, mv.tamanho);
+      var delta = mv.tipo === 'Entrada' ? qtd : -qtd;
+      saldoMap[key] = (saldoMap[key] || 0) + delta;
+      if (mv.tipo === 'Saída'){
+        totalVendas += valor * qtd;
+        totalLucro += (valor - custoDe(p.codigo)) * qtd;
+      }
     }
     document.getElementById('mov-qtd').value = 1;
     document.getElementById('mov-motivo').value = '';
@@ -1164,3 +1142,4 @@ html, body{margin:0;padding:0;background:#14161c;}
 </script>
 </body>
 </html>
+
