@@ -873,29 +873,79 @@ html, body{margin:0;padding:0;background:#14161c;}
     }).join('');
     Array.prototype.forEach.call(body.querySelectorAll('[data-del]'), function(btn){
       btn.addEventListener('click', async function(){
-        var id = btn.getAttribute('data-del');
-        var mv = movements.filter(function(m){ return String(m.id) === id; })[0];
-        try {
-          justProcessedMovIds[id] = true;
-          var result = await db.from('movements').delete().eq('id', id);
-          if (result.error) throw result.error;
-          movements = movements.filter(function(m){ return String(m.id) !== id; });
-          if (mv){
-            var key = saldoKey(mv.codigo, mv.tamanho);
-            var delta = mv.tipo === 'Entrada' ? -Number(mv.qtd) : Number(mv.qtd);
-            saldoMap[key] = (saldoMap[key] || 0) + delta;
-            if (mv.tipo === 'Saída'){
-              totalVendas -= Number(mv.valor||0) * Number(mv.qtd||0);
-              totalLucro -= (Number(mv.valor||0) - custoDe(mv.codigo)) * Number(mv.qtd||0);
-            }
-          }
-          renderAll();
-          toast('Lançamento removido.');
-        } catch(e){
-          console.error(e);
-          toast('Não consegui excluir o lançamento: ' + (e.message || e), true);
-        }
-      });
+
+  var id = btn.getAttribute('data-del');
+  var mv = movements.filter(function(m){
+    return String(m.id) === id;
+  })[0];
+
+  if (!mv) {
+    toast('Movimentação não encontrada.', true);
+    return;
+  }
+
+  try {
+
+    justProcessedMovIds[id] = true;
+
+    var result = await db.rpc('cancelar_movimento', {
+      p_id: String(id)
+    });
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    /*
+      Atualiza a lista local
+    */
+    movements = movements.filter(function(m){
+      return String(m.id) !== id;
+    });
+
+    /*
+      Reverte o saldo localmente
+    */
+    var key = saldoKey(mv.codigo, mv.tamanho);
+
+    var delta =
+      mv.tipo === 'Entrada'
+        ? -Number(mv.qtd)
+        : Number(mv.qtd);
+
+    saldoMap[key] = (saldoMap[key] || 0) + delta;
+
+    /*
+      Reverte os totais financeiros
+    */
+    if (mv.tipo === 'Saída') {
+
+      totalVendas -=
+        Number(mv.valor || 0) *
+        Number(mv.qtd || 0);
+
+      totalLucro -=
+        (Number(mv.valor || 0) - custoDe(mv.codigo)) *
+        Number(mv.qtd || 0);
+    }
+
+    renderAll();
+
+    toast('Lançamento cancelado.');
+
+  } catch(e) {
+
+    delete justProcessedMovIds[id];
+
+    console.error(e);
+
+    toast(
+      'Não consegui cancelar o lançamento: ' +
+      (e.message || e),
+      true
+    );
+  }
+});
     });
   }
 
