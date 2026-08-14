@@ -532,17 +532,42 @@ html, body{margin:0;padding:0;background:#14161c;}
   }
 
   async function insertMovement(mv){
-    try {
-      justProcessedMovIds[String(mv.id)] = true;
-      var result = await db.from('movements').insert([mv]);
-      if (result.error) throw result.error;
-      return true;
-    } catch(e){
-      console.error(e);
-      toast('Não consegui salvar o movimento: ' + (e.message || e), true);
-      return false;
+  try {
+    justProcessedMovIds[String(mv.id)] = true;
+
+    var result = await db.rpc('registrar_movimento', {
+      p_id: String(mv.id),
+      p_ts: Number(mv.ts),
+      p_data: mv.data,
+      p_codigo: mv.codigo,
+      p_tamanho: mv.tamanho,
+      p_tipo: mv.tipo,
+      p_qtd: Number(mv.qtd),
+      p_valor: Number(mv.valor || 0),
+      p_motivo: mv.motivo || '',
+      p_obs: mv.obs || ''
+    });
+
+    if (result.error) {
+      throw result.error;
     }
+
+    return true;
+
+  } catch(e){
+    delete justProcessedMovIds[String(mv.id)];
+
+    console.error(e);
+
+    toast(
+      'Não consegui registrar o movimento: ' +
+      (e.message || e),
+      true
+    );
+
+    return false;
   }
+}
 
   function stockFor(codigo, tamanho){
     return {saldo: saldoMap[saldoKey(codigo, tamanho)] || 0};
