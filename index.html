@@ -90,6 +90,9 @@
   .eq-toast.show{display:block;}
   .eq-toast.err{background:var(--pink-dim);border-color:var(--pink);color:var(--pink);}
   @media(max-width:520px){.eq-form{grid-template-columns:1fr;}}
+  .eq-split{display:grid;grid-template-columns:1fr;gap:30px;align-items:start;}
+  @media(min-width:900px){.eq-split{grid-template-columns:1fr 1fr;}}
+  .eq-split-col{min-width:0;}
   #estoque-root table.eq-table tbody td{color:var(--tx) !important;}
   #estoque-root .eq-section-title{color:var(--tx) !important;}
   #estoque-root input,
@@ -154,107 +157,118 @@ html, body{margin:0;padding:0;background:#14161c;}
 
     <div class="eq-panel active" id="panel-painel">
       <div class="eq-cards" id="eq-cards"></div>
+      <p style="font-size:11px;color:var(--tx-3);margin:-14px 0 20px;">* Lucro estimado com base no custo cadastrado atualmente para cada produto.</p>
       <div class="eq-group-tabs" id="eq-group-tabs"></div>
       <div class="eq-color-cols" id="eq-color-cols"></div>
     </div>
 
     <div class="eq-panel" id="panel-movimentar">
-      <p class="eq-section-title">Lançar movimento</p>
-      <div class="eq-form" id="eq-mov-form">
-        <div class="eq-field span2">
-          <label>Tipo</label>
-          <div class="eq-toggle">
-            <button type="button" class="sel-entrada on" id="btn-entrada">Entrada</button>
-            <button type="button" class="sel-saida" id="btn-saida">Saída</button>
+      <div class="eq-split">
+        <div class="eq-split-col">
+          <p class="eq-section-title">Lançar movimento</p>
+          <div class="eq-form" id="eq-mov-form">
+            <div class="eq-field span2">
+              <label>Tipo</label>
+              <div class="eq-toggle">
+                <button type="button" class="sel-entrada on" id="btn-entrada">Entrada</button>
+                <button type="button" class="sel-saida" id="btn-saida">Saída</button>
+              </div>
+            </div>
+            <div class="eq-field span2">
+              <label>Modelo</label>
+              <div class="eq-block-row" id="mov-modelo-blocks"></div>
+            </div>
+            <div class="eq-field span2" id="mov-cor-wrap">
+              <label>Cor</label>
+              <div class="eq-block-row" id="mov-cor-blocks"></div>
+            </div>
+            <div class="eq-field span2">
+              <label>Tamanho</label>
+              <div class="eq-block-row" id="mov-tamanho-blocks"></div>
+            </div>
+            <div class="eq-field">
+              <label>Data</label>
+              <input type="date" id="mov-data" required>
+            </div>
+            <div class="eq-field">
+              <label>Quantidade</label>
+              <input type="number" id="mov-qtd" min="1" step="1" value="1" required>
+            </div>
+            <div class="eq-field">
+              <label id="mov-valor-label">Valor de compra (R$)</label>
+              <input type="number" id="mov-valor" min="0" step="0.01">
+            </div>
+            <div class="eq-field">
+              <label>Motivo / cliente</label>
+              <input type="text" id="mov-motivo" placeholder="Venda Instagram, Compra fornecedor...">
+            </div>
+            <div class="eq-field span2">
+              <label>Observação (opcional)</label>
+              <textarea id="mov-obs" placeholder="Detalhes extras"></textarea>
+            </div>
+            <button type="button" class="eq-btn-stamp" id="eq-mov-submit">Carimbar movimento</button>
           </div>
         </div>
-        <div class="eq-field span2">
-          <label>Modelo</label>
-          <div class="eq-block-row" id="mov-modelo-blocks"></div>
+        <div class="eq-split-col">
+          <p class="eq-section-title">Últimos lançamentos <span style="font-family:var(--sans);font-weight:400;font-size:12px;color:var(--tx-3);">(mais recentes)</span></p>
+          <div class="eq-table-wrap">
+            <table class="eq-table">
+              <thead><tr><th>Data</th><th>Produto</th><th>Tamanho</th><th>Tipo</th><th>Qtd</th><th>Valor</th><th>Motivo</th><th></th></tr></thead>
+              <tbody id="eq-mov-body"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="eq-field span2" id="mov-cor-wrap">
-          <label>Cor</label>
-          <div class="eq-block-row" id="mov-cor-blocks"></div>
-        </div>
-        <div class="eq-field span2">
-          <label>Tamanho</label>
-          <div class="eq-block-row" id="mov-tamanho-blocks"></div>
-        </div>
-        <div class="eq-field">
-          <label>Data</label>
-          <input type="date" id="mov-data" required>
-        </div>
-        <div class="eq-field">
-          <label>Quantidade</label>
-          <input type="number" id="mov-qtd" min="1" step="1" value="1" required>
-        </div>
-        <div class="eq-field">
-          <label id="mov-valor-label">Valor de compra (R$)</label>
-          <input type="number" id="mov-valor" min="0" step="0.01">
-        </div>
-        <div class="eq-field">
-          <label>Motivo / cliente</label>
-          <input type="text" id="mov-motivo" placeholder="Venda Instagram, Compra fornecedor...">
-        </div>
-        <div class="eq-field span2">
-          <label>Observação (opcional)</label>
-          <textarea id="mov-obs" placeholder="Detalhes extras"></textarea>
-        </div>
-        <button type="button" class="eq-btn-stamp" id="eq-mov-submit">Carimbar movimento</button>
-      </div>
-
-      <p class="eq-section-title">Últimos lançamentos <span style="font-family:var(--sans);font-weight:400;font-size:12px;color:var(--tx-3);">(mais recentes)</span></p>
-      <div class="eq-table-wrap">
-        <table class="eq-table">
-          <thead><tr><th>Data</th><th>Produto</th><th>Tamanho</th><th>Tipo</th><th>Qtd</th><th>Valor</th><th>Motivo</th><th></th></tr></thead>
-          <tbody id="eq-mov-body"></tbody>
-        </table>
       </div>
     </div>
 
     <div class="eq-panel" id="panel-produtos">
-      <p class="eq-section-title">Novo produto</p>
-      <div class="eq-form" id="eq-prod-form">
-        <div class="eq-field">
-          <label>Categoria</label>
-          <select id="p-categoria">
-            <option value="Ecobag">Ecobag</option>
-            <option value="Blusa">Blusa</option>
-          </select>
+      <div class="eq-split">
+        <div class="eq-split-col">
+          <p class="eq-section-title">Novo produto</p>
+          <div class="eq-form" id="eq-prod-form">
+            <div class="eq-field">
+              <label>Categoria</label>
+              <select id="p-categoria">
+                <option value="Ecobag">Ecobag</option>
+                <option value="Blusa">Blusa</option>
+              </select>
+            </div>
+            <div class="eq-field">
+              <label>Modelo</label>
+              <input type="text" id="p-modelo" placeholder="Oversize, P, Cropped..." required>
+            </div>
+            <div class="eq-field">
+              <label>Cor / variação</label>
+              <input type="text" id="p-cor" placeholder="Preto, Off White, -">
+            </div>
+            <div class="eq-field span2">
+              <label>Tamanhos disponíveis</label>
+              <input type="text" id="p-tamanhos" placeholder="P, M, G, GG (separados por vírgula)">
+            </div>
+            <div class="eq-field">
+              <label>Estoque mínimo</label>
+              <input type="number" id="p-min" min="0" step="1" value="3">
+            </div>
+            <div class="eq-field">
+              <label>Preço custo (R$)</label>
+              <input type="number" id="p-custo" min="0" step="0.01" value="0">
+            </div>
+            <div class="eq-field">
+              <label>Preço venda (R$)</label>
+              <input type="number" id="p-venda" min="0" step="0.01" value="0">
+            </div>
+            <button type="button" class="eq-btn-stamp" id="eq-prod-submit">Cadastrar produto</button>
+          </div>
         </div>
-        <div class="eq-field">
-          <label>Modelo</label>
-          <input type="text" id="p-modelo" placeholder="Oversize, P, Cropped..." required>
+        <div class="eq-split-col">
+          <p class="eq-section-title">Catálogo</p>
+          <div class="eq-table-wrap">
+            <table class="eq-table">
+              <thead><tr><th>Código</th><th>Categoria</th><th>Modelo</th><th>Cor</th><th>Tamanhos</th><th>Mínimo</th><th>Custo</th><th>Venda</th><th></th></tr></thead>
+              <tbody id="eq-prod-body"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="eq-field">
-          <label>Cor / variação</label>
-          <input type="text" id="p-cor" placeholder="Preto, Off White, -">
-        </div>
-        <div class="eq-field span2">
-          <label>Tamanhos disponíveis</label>
-          <input type="text" id="p-tamanhos" placeholder="P, M, G, GG (separados por vírgula)">
-        </div>
-        <div class="eq-field">
-          <label>Estoque mínimo</label>
-          <input type="number" id="p-min" min="0" step="1" value="3">
-        </div>
-        <div class="eq-field">
-          <label>Preço custo (R$)</label>
-          <input type="number" id="p-custo" min="0" step="0.01" value="0">
-        </div>
-        <div class="eq-field">
-          <label>Preço venda (R$)</label>
-          <input type="number" id="p-venda" min="0" step="0.01" value="0">
-        </div>
-        <button type="button" class="eq-btn-stamp" id="eq-prod-submit">Cadastrar produto</button>
-      </div>
-
-      <p class="eq-section-title">Catálogo</p>
-      <div class="eq-table-wrap">
-        <table class="eq-table">
-          <thead><tr><th>Código</th><th>Categoria</th><th>Modelo</th><th>Cor</th><th>Tamanhos</th><th>Mínimo</th><th>Custo</th><th>Venda</th><th></th></tr></thead>
-          <tbody id="eq-prod-body"></tbody>
-        </table>
       </div>
     </div>
   </div>
@@ -359,6 +373,10 @@ html, body{margin:0;padding:0;background:#14161c;}
     var key = saldoKey(mv.codigo, mv.tamanho);
     var delta = mv.tipo === 'Entrada' ? Number(mv.qtd) : -Number(mv.qtd);
     saldoMap[key] = (saldoMap[key] || 0) + delta;
+    if (mv.tipo === 'Saída'){
+      totalVendas += Number(mv.valor||0) * Number(mv.qtd||0);
+      totalLucro += (Number(mv.valor||0) - custoDe(mv.codigo)) * Number(mv.qtd||0);
+    }
     renderAll();
     toast('🔄 Novo lançamento sincronizado de outro aparelho.');
   }
@@ -371,6 +389,10 @@ html, body{margin:0;padding:0;background:#14161c;}
     var key = saldoKey(mv.codigo, mv.tamanho);
     var delta = mv.tipo === 'Entrada' ? -Number(mv.qtd) : Number(mv.qtd);
     saldoMap[key] = (saldoMap[key] || 0) + delta;
+    if (mv.tipo === 'Saída'){
+      totalVendas -= Number(mv.valor||0) * Number(mv.qtd||0);
+      totalLucro -= (Number(mv.valor||0) - custoDe(mv.codigo)) * Number(mv.qtd||0);
+    }
     renderAll();
     toast('🔄 Um lançamento foi removido em outro aparelho.');
   }
@@ -437,6 +459,13 @@ html, body{margin:0;padding:0;background:#14161c;}
   }
 
   var saldoMap = {};
+  var totalVendas = 0;
+  var totalLucro = 0;
+
+  function custoDe(codigo){
+    var p = products.filter(function(x){ return x.codigo === codigo; })[0];
+    return p ? Number(p.custo) || 0 : 0;
+  }
   var MOV_FETCH_LIMIT = 60;
 
   function saldoKey(codigo, tamanho){ return codigo + '|' + tamanho; }
@@ -464,6 +493,13 @@ html, body{margin:0;padding:0;background:#14161c;}
         saldoMap[saldoKey(row.codigo, row.tamanho)] = Number(row.saldo) || 0;
       });
 
+      // Total vendido e lucro vêm prontos do banco (view sales_summary),
+      // considerando TODO o histórico, não só os últimos lançamentos baixados.
+      var salesResult = await db.from('sales_summary').select('*').maybeSingle();
+      if (salesResult.error) throw salesResult.error;
+      totalVendas = Number(salesResult.data && salesResult.data.total_vendas) || 0;
+      totalLucro = Number(salesResult.data && salesResult.data.lucro_estimado) || 0;
+
       // Só os lançamentos mais recentes são baixados (histórico completo fica no banco).
       var movResult = await db.from('movements').select('*').order('ts', {ascending:false}).limit(MOV_FETCH_LIMIT);
       if (movResult.error) throw movResult.error;
@@ -475,6 +511,8 @@ html, body{margin:0;padding:0;background:#14161c;}
       products = [];
       movements = [];
       saldoMap = {};
+      totalVendas = 0;
+      totalLucro = 0;
       renderAll();
       toast('Erro ao carregar o Supabase: ' + (e.message || e), true);
     }
@@ -541,7 +579,9 @@ html, body{margin:0;padding:0;background:#14161c;}
     wrap.innerHTML =
       '<div class="eq-card"><p class="eq-card-label">Produtos cadastrados</p><p class="eq-card-value">' + totalProdutos + '</p></div>' +
       '<div class="eq-card"><p class="eq-card-label">Para repor</p><p class="eq-card-value ' + (repor>0?'warn':'') + '">' + repor + '</p></div>' +
-      '<div class="eq-card"><p class="eq-card-label">Valor em estoque (custo)</p><p class="eq-card-value">' + fmtBRL(valorEstoque) + '</p></div>';
+      '<div class="eq-card"><p class="eq-card-label">Valor em estoque (custo)</p><p class="eq-card-value">' + fmtBRL(valorEstoque) + '</p></div>' +
+      '<div class="eq-card"><p class="eq-card-label">Total vendido</p><p class="eq-card-value">' + fmtBRL(totalVendas) + '</p></div>' +
+      '<div class="eq-card"><p class="eq-card-label">Lucro estimado</p><p class="eq-card-value ' + (totalLucro<0?'warn':'') + '">' + fmtBRL(totalLucro) + '</p></div>';
   }
 
   var SIZE_ORDER = ['PP','P','M','G','GG','XG','XGG','ÚNICO','UNICO'];
@@ -819,6 +859,10 @@ html, body{margin:0;padding:0;background:#14161c;}
             var key = saldoKey(mv.codigo, mv.tamanho);
             var delta = mv.tipo === 'Entrada' ? -Number(mv.qtd) : Number(mv.qtd);
             saldoMap[key] = (saldoMap[key] || 0) + delta;
+            if (mv.tipo === 'Saída'){
+              totalVendas -= Number(mv.valor||0) * Number(mv.qtd||0);
+              totalLucro -= (Number(mv.valor||0) - custoDe(mv.codigo)) * Number(mv.qtd||0);
+            }
           }
           renderAll();
           toast('Lançamento removido.');
@@ -1001,6 +1045,10 @@ html, body{margin:0;padding:0;background:#14161c;}
     var key = saldoKey(mv.codigo, mv.tamanho);
     var delta = mv.tipo === 'Entrada' ? qtd : -qtd;
     saldoMap[key] = (saldoMap[key] || 0) + delta;
+    if (mv.tipo === 'Saída'){
+      totalVendas += valor * qtd;
+      totalLucro += (valor - custoDe(p.codigo)) * qtd;
+    }
     document.getElementById('mov-qtd').value = 1;
     document.getElementById('mov-motivo').value = '';
     document.getElementById('mov-obs').value = '';
