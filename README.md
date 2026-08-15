@@ -4,19 +4,18 @@ Projeto web de controle de estoque preparado para publicação no Vercel.
 
 ## Estrutura
 
-- `public/index.html` — aplicação atual.
+- `index.html` — aplicação estática e frontend atual, na raiz do repositório.
 - `package.json` — configuração mínima do projeto.
-- `vercel.json` — configuração de publicação.
-- `.gitignore` — arquivos que não devem ir para o GitHub.
+- `vercel.json` — configuração de publicação e headers de segurança.
+- `supabase/migrations/` — migrations formais aplicadas ao Supabase.
+- `database/upgrade_inventory.sql` — documentação SQL da atualização inicial do estoque.
 
 ## Publicação no GitHub
 
-1. Crie um repositório no GitHub.
-2. Envie todos os arquivos desta pasta para o repositório.
-3. No Vercel, importe o repositório.
-4. Não é necessário configurar um build command.
-5. O diretório de saída pode ser `public`.
-6. Publique.
+1. Envie as alterações para o repositório GitHub conectado ao Vercel.
+2. O Vercel publica o `index.html` diretamente da raiz do repositório.
+3. Não configure build command nem output directory: este projeto é estático e não possui etapa de build.
+4. Confirme que o deployment associado ao commit terminou com status `success`.
 
 ## Dados e auditoria
 

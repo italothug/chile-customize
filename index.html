@@ -279,7 +279,7 @@ html, body{margin:0;padding:0;background:#14161c;}
         <button class="eq-btn-ghost" id="export-json">Exportar JSON</button>
       </div>
       <div class="eq-table-wrap"><table class="eq-table">
-        <thead><tr><th>Quando</th><th>Produto</th><th>Tam.</th><th>Tipo</th><th>Qtd</th><th>Valor real</th><th>Custo fotografado</th><th>Status / auditoria</th></tr></thead>
+        <thead><tr><th>Quando</th><th>Criado por</th><th>Produto</th><th>Tam.</th><th>Tipo</th><th>Qtd</th><th>Valor real</th><th>Custo fotografado</th><th>Cancelado por</th><th>Status / auditoria</th></tr></thead>
         <tbody id="eq-audit-body"></tbody>
       </table></div>
     </div>
@@ -1090,10 +1090,16 @@ html, body{margin:0;padding:0;background:#14161c;}
 
   function renderAuditTable(){
     var body=document.getElementById('eq-audit-body');
-    if(!auditMovements.length){body.innerHTML='<tr><td colspan="8"><div class="eq-empty">Sem histórico.</div></td></tr>';return;}
+    if(!auditMovements.length){body.innerHTML='<tr><td colspan="10"><div class="eq-empty">Sem histórico.</div></td></tr>';return;}
+    function auditActor(uuid, emptyLabel){
+      if(!uuid) return esc(emptyLabel);
+      var full=String(uuid);
+      var short=full.length>13 ? full.slice(0,8)+'…'+full.slice(-4) : full;
+      return '<span class="eq-mono" title="'+esc(full)+'">'+esc(short)+'</span>';
+    }
     body.innerHTML=auditMovements.map(function(m){
       var status=m.cancelado_em ? 'CANCELADO em '+new Date(m.cancelado_em).toLocaleString('pt-BR')+' — '+(m.motivo_cancelamento||'Sem motivo') : 'Ativo — '+(m.motivo||'');
-      return '<tr'+(m.cancelado_em?' style="opacity:.65"':'')+'><td>'+esc(new Date(m.created_at).toLocaleString('pt-BR'))+'</td><td class="eq-mono">'+esc(m.codigo)+'</td><td>'+esc(m.tamanho)+'</td><td>'+esc(m.tipo)+'</td><td>'+esc(m.qtd)+'</td><td>'+esc(fmtBRL(m.valor))+'</td><td>'+esc(fmtBRL(m.custo_unitario))+'</td><td>'+esc(status)+'</td></tr>';
+      return '<tr'+(m.cancelado_em?' style="opacity:.65"':'')+'><td>'+esc(new Date(m.created_at).toLocaleString('pt-BR'))+'</td><td>'+auditActor(m.created_by,'Histórico anterior')+'</td><td class="eq-mono">'+esc(m.codigo)+'</td><td>'+esc(m.tamanho)+'</td><td>'+esc(m.tipo)+'</td><td>'+esc(m.qtd)+'</td><td>'+esc(fmtBRL(m.valor))+'</td><td>'+esc(fmtBRL(m.custo_unitario))+'</td><td>'+auditActor(m.cancelado_por,'—')+'</td><td>'+esc(status)+'</td></tr>';
     }).join('');
   }
 
