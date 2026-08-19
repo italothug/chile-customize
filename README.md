@@ -1,4 +1,4 @@
-# Estoque Chile — Vercel
+# #UseChile — Estoque
 
 Projeto web de controle de estoque preparado para publicação no Vercel.
 
@@ -19,7 +19,7 @@ Projeto web de controle de estoque preparado para publicação no Vercel.
 
 ## Dados e auditoria
 
-O sistema usa Supabase com autenticação, RLS, movimentações via RPC e sincronização Realtime. Movimentações não são apagadas: cancelamentos registram data, usuário e motivo. Produtos são arquivados/reativados para preservar o histórico.
+O sistema usa Supabase com autenticação, RLS, movimentações via RPC e sincronização Realtime. Movimentações não são apagadas: cancelamentos registram data, usuário e motivo. Produtos são arquivados/reativados para preservar o histórico. A área de vendas agrupa os lançamentos por mês e acompanha pagamentos de 50% ou 100% sem alterar o valor original da venda.
 
 As migrations formais ficam em `supabase/migrations`. Nunca coloque uma chave `service_role` no frontend.
 
