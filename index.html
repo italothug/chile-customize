@@ -86,9 +86,15 @@
   .eq-btn-danger:hover{color:var(--pink);}
   .eq-section-title{font-family:var(--serif);font-size:16px;font-weight:600;margin:0 0 12px;}
   .eq-empty{color:var(--tx-3);font-size:13px;padding:24px;text-align:center;}
-  .eq-toast{position:relative;margin-bottom:14px;background:var(--teal-dim);border:1px solid var(--teal);color:var(--teal);font-family:var(--mono);font-size:12px;padding:10px 14px;border-radius:8px;display:none;}
-  .eq-toast.show{display:block;}
-  .eq-toast.err{background:var(--pink-dim);border-color:var(--pink);color:var(--pink);}
+  .eq-toast-stack{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:9999;width:min(360px,calc(100vw - 32px));display:flex;flex-direction:column-reverse;gap:9px;pointer-events:none;}
+  .eq-toast{display:flex;align-items:flex-start;gap:10px;background:#18231f;border:1px solid var(--teal);color:#d8f8ec;font-family:var(--sans);font-size:13px;line-height:1.4;padding:12px 14px;border-radius:11px;box-shadow:0 14px 38px rgba(0,0,0,.38);pointer-events:auto;animation:eq-toast-in .18s ease-out both;}
+  .eq-toast::before{content:'✓';display:grid;place-items:center;flex:0 0 20px;height:20px;border-radius:50%;background:var(--teal);color:#0b241a;font-weight:700;}
+  .eq-toast.err{background:#2d1821;border-color:var(--pink);color:#ffdce9;}
+  .eq-toast.err::before{content:'!';background:var(--pink);color:#fff;}
+  .eq-toast.out{animation:eq-toast-out .16s ease-in both;}
+  @keyframes eq-toast-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes eq-toast-out{to{opacity:0;transform:translateY(8px) scale(.98)}}
+  @media(prefers-reduced-motion:reduce){.eq-toast,.eq-toast.out{animation:none}}
   @media(max-width:520px){.eq-form{grid-template-columns:1fr;}}
   .eq-split{display:grid;grid-template-columns:1fr;gap:30px;align-items:start;}
   @media(min-width:900px){.eq-split{grid-template-columns:1fr 1fr;}}
@@ -203,7 +209,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
         </div>
       </div>
       <div class="eq-body">
-    <div id="eq-toast" class="eq-toast"></div>
+    <div id="eq-toast-container" class="eq-toast-stack" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="eq-panel active" id="panel-painel">
       <div class="eq-cards" id="eq-cards"></div>
@@ -425,10 +431,19 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   }
 
   function toast(msg, isErr){
-    var t = document.getElementById('eq-toast');
-    t.textContent = msg;
-    t.className = 'eq-toast show' + (isErr ? ' err' : '');
-    setTimeout(function(){ t.className = 'eq-toast'; }, 2600);
+    var stack = document.getElementById('eq-toast-container');
+    if (!stack) return;
+    var item = document.createElement('div');
+    item.className = 'eq-toast' + (isErr ? ' err' : '');
+    item.textContent = msg;
+    stack.appendChild(item);
+    while (stack.children.length > 3) stack.removeChild(stack.firstElementChild);
+    var duration = isErr ? 5200 : 3200;
+    setTimeout(function(){
+      if (!item.isConnected) return;
+      item.classList.add('out');
+      setTimeout(function(){ if (item.isConnected) item.remove(); }, 180);
+    }, duration);
   }
 
   var loginGate = document.getElementById('eq-login-gate');
@@ -459,7 +474,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       .on('postgres_changes', {event:'INSERT', schema:'public', table:'products'}, handleRealtimeProdUpsert)
       .on('postgres_changes', {event:'UPDATE', schema:'public', table:'products'}, handleRealtimeProdUpsert)
       .on('postgres_changes', {event:'DELETE', schema:'public', table:'products'}, handleRealtimeProdDelete)
-      .subscribe(function(status){
+      .subscribe(function(status, err){
         var el = document.getElementById('sync-status');
         var pill = document.getElementById('sync-pill');
         if (status === 'SUBSCRIBED'){
@@ -473,6 +488,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
         } else {
           el.textContent = 'Reconectando'; wasRealtimeOnline = false;
           pill.textContent = 'Reconectando';
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error('Supabase Realtime:', status, err);
         }
       });
   }
@@ -499,12 +515,12 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       totalLucro += (Number(mv.valor||0) - custoDe(mv.codigo)) * Number(mv.qtd||0);
     }
     renderAll();
-    toast('🔄 Novo lançamento sincronizado de outro aparelho.');
+    toast('Novo lançamento sincronizado.');
   }
 
   function handleRealtimeMovUpdate(){
-    loadData();
-    toast('🔄 Histórico e estoque sincronizados de outro aparelho.');
+    scheduleLoadData();
+    toast('Histórico e estoque sincronizados.');
   }
 
   function handleRealtimeMovDelete(payload){
@@ -523,7 +539,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       totalLucro -= (Number(mv.valor||0) - custoDe(mv.codigo)) * Number(mv.qtd||0);
     }
     renderAll();
-    toast('🔄 Um lançamento foi removido em outro aparelho.');
+    toast('Um lançamento foi removido em outro aparelho.');
   }
 
   function handleRealtimeProdUpsert(payload){
@@ -531,14 +547,14 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     var idx = products.findIndex(function(x){ return x.codigo === p.codigo; });
     if (idx >= 0) products[idx] = p; else products.push(p);
     renderAll();
-    toast('🔄 Catálogo atualizado em outro aparelho.');
+    toast('Catálogo atualizado.');
   }
 
   function handleRealtimeProdDelete(payload){
     var codigo = payload.old.codigo;
     products = products.filter(function(p){ return p.codigo !== codigo; });
     renderAll();
-    toast('🔄 Um produto foi removido em outro aparelho.');
+    toast('Um produto foi removido em outro aparelho.');
   }
 
   async function checkAuthAndInit(){
