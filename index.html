@@ -92,6 +92,15 @@
   .eq-toast.err{background:#2d1821;border-color:var(--pink);color:#ffdce9;}
   .eq-toast.err::before{content:'!';background:var(--pink);color:#fff;}
   .eq-toast.out{animation:eq-toast-out .16s ease-in both;}
+  .eq-modal-backdrop{position:fixed;inset:0;z-index:10000;background:rgba(4,6,9,.72);display:none;align-items:center;justify-content:center;padding:18px;}
+  .eq-modal-backdrop.show{display:flex;}
+  .eq-modal{width:min(520px,100%);max-height:calc(100vh - 36px);overflow:auto;background:var(--ink-2);border:1px solid var(--line);border-radius:15px;box-shadow:0 24px 70px rgba(0,0,0,.55);padding:20px;}
+  .eq-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:16px;}
+  .eq-modal-title{font-family:var(--serif);font-size:20px;margin:0;}
+  .eq-modal-sub{font-size:12px;color:var(--tx-3);margin:5px 0 0;line-height:1.5;}
+  .eq-modal-close{border:0;background:none;color:var(--tx-2);font-size:22px;cursor:pointer;padding:0 4px;}
+  .eq-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+  .eq-edit-note{font-size:12px;color:var(--amber);background:var(--amber-dim);border-radius:8px;padding:9px 11px;margin-bottom:14px;}
   @keyframes eq-toast-in{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
   @keyframes eq-toast-out{to{opacity:0;transform:translateY(8px) scale(.98)}}
   @media(prefers-reduced-motion:reduce){.eq-toast,.eq-toast.out{animation:none}}
@@ -261,8 +270,9 @@ html, body{margin:0;padding:0;background:#0d0f14;}
             <div class="eq-field span2" id="mov-pagamento-wrap" style="display:none">
               <label>Pagamento recebido</label>
               <select id="mov-percentual-pago">
-                <option value="100">100% — pagamento completo</option>
+                <option value="0" selected>0% — ainda não recebido</option>
                 <option value="50">50% — entrada / sinal</option>
+                <option value="100">100% — pagamento completo</option>
               </select>
             </div>
             <div class="eq-field span2">
@@ -366,6 +376,13 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   </div>
 </div>
 
+<div id="eq-modal-backdrop" class="eq-modal-backdrop" aria-hidden="true">
+  <section class="eq-modal" role="dialog" aria-modal="true" aria-labelledby="eq-modal-title">
+    <div class="eq-modal-head"><div><h2 class="eq-modal-title" id="eq-modal-title"></h2><p class="eq-modal-sub" id="eq-modal-sub"></p></div><button type="button" class="eq-modal-close" id="eq-modal-close" aria-label="Fechar">×</button></div>
+    <div id="eq-modal-content"></div>
+  </section>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.111.0"></script>
 <script>
 (function(){
@@ -382,6 +399,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   var movements = [];
   var auditMovements = [];
   var movTipo = 'Entrada';
+  var modalSaveHandler = null;
 
   var root = document.getElementById('estoque-root');
 
@@ -444,6 +462,59 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       item.classList.add('out');
       setTimeout(function(){ if (item.isConnected) item.remove(); }, 180);
     }, duration);
+  }
+
+  function closeModal(){
+    var b=document.getElementById('eq-modal-backdrop');b.classList.remove('show');b.setAttribute('aria-hidden','true');modalSaveHandler=null;
+  }
+  function openModal(title,sub,html,onSave){
+    document.getElementById('eq-modal-title').textContent=title;document.getElementById('eq-modal-sub').textContent=sub||'';
+    document.getElementById('eq-modal-content').innerHTML=html;modalSaveHandler=onSave;
+    var b=document.getElementById('eq-modal-backdrop');b.classList.add('show');b.setAttribute('aria-hidden','false');
+    var first=b.querySelector('input,select,textarea,button');if(first)setTimeout(function(){first.focus();},0);
+  }
+  document.getElementById('eq-modal-close').addEventListener('click',closeModal);
+  document.getElementById('eq-modal-backdrop').addEventListener('click',function(e){if(e.target===this)closeModal();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
+
+  async function openEditMovement(id){
+    var mv=movements.concat(auditMovements).filter(function(x){return String(x.id)===String(id);})[0];
+    if(!mv){toast('Movimentação não encontrada.',true);return;}if(mv.cancelado_em){toast('Movimentações canceladas não podem ser editadas.',true);return;}
+    var payment=Number(mv.percentual_pago||0);
+    var html='<div class="eq-edit-note">A correção será aplicada ao estoque e registrada na auditoria. O custo fotografado da saída não será alterado.</div><div class="eq-form full" style="margin:0">'+
+      '<div class="eq-field"><label>Movimento</label><input value="'+esc(mv.tipo+' — '+mv.codigo+' / '+(mv.tamanho||'-'))+'" disabled></div>'+
+      '<div class="eq-field"><label>Quantidade</label><input id="edit-mov-qtd" type="number" min="1" step="1" value="'+esc(mv.qtd)+'"></div>'+
+      '<div class="eq-field"><label>Valor unitário real (R$)</label><input id="edit-mov-valor" type="number" min="0" step="0.01" value="'+esc(Number(mv.valor||0).toFixed(2))+'"></div>'+
+      (mv.tipo==='Saída'?'<div class="eq-field"><label>Pagamento recebido</label><select id="edit-mov-pagamento"><option value="0"'+(payment===0?' selected':'')+'>0% — ainda não recebido</option><option value="50"'+(payment===50?' selected':'')+'>50% — entrada / sinal</option><option value="100"'+(payment===100?' selected':'')+'>100% — pagamento completo</option></select></div>':'')+
+      '<div class="eq-field"><label>Motivo da correção</label><textarea id="edit-mov-motivo" placeholder="Ex.: quantidade ou valor lançado incorretamente"></textarea></div></div>'+
+      '<div class="eq-modal-actions"><button type="button" class="eq-btn-ghost" id="edit-mov-cancel">Voltar</button><button type="button" class="eq-btn-stamp" id="edit-mov-save" style="grid-column:auto">Salvar correção</button></div>';
+    openModal('Editar movimento','Corrija quantidade, valor e pagamento.',html,async function(){
+      var qtd=Number(document.getElementById('edit-mov-qtd').value),valor=Number(document.getElementById('edit-mov-valor').value),motivo=document.getElementById('edit-mov-motivo').value.trim();
+      var percentual=mv.tipo==='Saída'?Number(document.getElementById('edit-mov-pagamento').value):null;
+      if(!Number.isInteger(qtd)||qtd<=0){toast('Informe uma quantidade inteira maior que zero.',true);return;}
+      if(!Number.isFinite(valor)||valor<0){toast('Informe um valor válido.',true);return;}if(!motivo){toast('Informe o motivo da correção.',true);return;}
+      var save=document.getElementById('edit-mov-save');if(save.disabled)return;save.disabled=true;
+      try{var result=await db.rpc('editar_movimento',{p_id:String(mv.id),p_qtd:qtd,p_valor:valor,p_percentual_pago:percentual,p_motivo_edicao:motivo});if(result.error)throw result.error;closeModal();await loadData();toast('Movimento corrigido e alteração registrada na auditoria.');}
+      catch(e){console.error(e);toast('Não consegui editar o movimento: '+(e.message||e),true);save.disabled=false;}
+    });
+    document.getElementById('edit-mov-cancel').addEventListener('click',closeModal);
+    document.getElementById('edit-mov-save').addEventListener('click',function(){if(modalSaveHandler)modalSaveHandler();});
+  }
+
+  function openCreateColor(){
+    var template=products.filter(function(p){return p.ativo!==false&&movGroupKeyFor(p)===movGrupoSel;})[0];
+    if(!template){toast('Selecione um modelo antes de criar a cor.',true);return;}
+    var html='<div class="eq-form full" style="margin:0"><div class="eq-field"><label>Modelo</label><input value="'+esc(template.modelo)+'" disabled></div><div class="eq-field"><label>Nova cor</label><input id="new-color-name" type="text" placeholder="Ex.: Vinho"></div><div class="eq-field"><label>Tamanhos</label><input value="PP, P, M, G, GG" disabled></div></div><div class="eq-modal-actions"><button type="button" class="eq-btn-ghost" id="new-color-cancel">Voltar</button><button type="button" class="eq-btn-stamp" id="new-color-save" style="grid-column:auto">Criar cor</button></div>';
+    openModal('Criar cor','O novo produto herdará categoria, modelo, preços e estoque mínimo.',html,async function(){
+      var cor=document.getElementById('new-color-name').value.trim();if(!cor){toast('Informe a nova cor.',true);return;}
+      var codigo=(template.categoria==='Ecobag'?'ECO-':'BLU-')+slug(template.modelo)+'-'+slug(cor);
+      if(products.some(function(p){return p.codigo===codigo;})){toast('Essa cor já existe para o modelo.',true);return;}
+      var save=document.getElementById('new-color-save');if(save.disabled)return;save.disabled=true;
+      var novo={codigo:codigo,categoria:template.categoria,modelo:template.modelo,cor:cor,tamanhos:['PP','P','M','G','GG'],min:Number(template.min||0),custo:Number(template.custo||0),venda:Number(template.venda||0),ativo:true};
+      if(!await upsertProduct(novo)){save.disabled=false;return;}closeModal();await loadData();movGrupoSel=movGroupKeyFor(novo);movCorSel=cor;movTamanhoSel='PP';renderAll();toast('Cor '+cor+' criada com tamanhos do PP ao GG.');
+    });
+    document.getElementById('new-color-cancel').addEventListener('click',closeModal);
+    document.getElementById('new-color-save').addEventListener('click',function(){if(modalSaveHandler)modalSaveHandler();});
   }
 
   var loginGate = document.getElementById('eq-login-gate');
@@ -934,16 +1005,11 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       if (p.cor && p.cor !== '-' && cores.indexOf(p.cor) === -1) cores.push(p.cor);
     });
     if (movTipo === 'Saída') cores = cores.filter(function(c){ return corTemEstoque(movGrupoSel, c); });
-    if (!cores.length){
-      wrapOuter.style.display = 'none';
-      movCorSel = null;
-      return;
-    }
-    wrapOuter.style.display = '';
-    if (!movCorSel || cores.indexOf(movCorSel) === -1) movCorSel = cores[0];
-    wrap.innerHTML = cores.map(function(c){
-      return '<button type="button" class="eq-block-btn' + (c === movCorSel ? ' active' : '') + '" data-cor="' + esc(c) + '">' + esc(c) + '</button>';
-    }).join('');
+    var canCreate=movTipo==='Entrada'&&!!movGrupoSel;
+    if (!cores.length&&!canCreate){wrapOuter.style.display='none';movCorSel=null;return;}
+    wrapOuter.style.display='';
+    if(cores.length&&(!movCorSel||cores.indexOf(movCorSel)===-1))movCorSel=cores[0];
+    wrap.innerHTML=cores.map(function(c){return '<button type="button" class="eq-block-btn'+(c===movCorSel?' active':'')+'" data-cor="'+esc(c)+'">'+esc(c)+'</button>';}).join('')+(canCreate?'<button type="button" class="eq-block-btn" data-create-cor>＋ Criar cor</button>':'');
     Array.prototype.forEach.call(wrap.querySelectorAll('[data-cor]'), function(btn){
       btn.addEventListener('click', function(){
         movCorSel = btn.getAttribute('data-cor');
@@ -953,6 +1019,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
         updateMovValorField();
       });
     });
+    var createBtn=wrap.querySelector('[data-create-cor]');if(createBtn)createBtn.addEventListener('click',openCreateColor);
   }
 
   function renderMovTamanhoBlocks(){
@@ -1014,9 +1081,10 @@ html, body{margin:0;padding:0;background:#0d0f14;}
         '<td class="eq-mono">' + esc(mv.qtd) + '</td>' +
         '<td class="eq-mono">' + esc(fmtBRL(mv.valor)) + '</td>' +
         '<td>' + esc(mv.motivo||'') + '</td>' +
-        '<td><button class="eq-btn-danger" data-del="' + esc(mv.id) + '" title="Cancelar lançamento" aria-label="Cancelar lançamento"><i class="ti ti-x"></i>✕</button></td>' +
+        '<td><div class="eq-row-actions"><button class="eq-btn-ghost" data-editmov="' + esc(mv.id) + '">Editar</button><button class="eq-btn-danger" data-del="' + esc(mv.id) + '" title="Cancelar lançamento" aria-label="Cancelar lançamento"><i class="ti ti-x"></i>✕</button></div></td>' +
       '</tr>';
     }).join('');
+    Array.prototype.forEach.call(body.querySelectorAll('[data-editmov]'),function(btn){btn.addEventListener('click',function(){openEditMovement(btn.getAttribute('data-editmov'));});});
     Array.prototype.forEach.call(body.querySelectorAll('[data-del]'), function(btn){
       btn.addEventListener('click', async function(){
 
@@ -1195,6 +1263,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     }
     body.innerHTML=auditMovements.map(function(m){
       var status=m.cancelado_em ? 'CANCELADO em '+new Date(m.cancelado_em).toLocaleString('pt-BR')+' — '+(m.motivo_cancelamento||'Sem motivo') : 'Ativo — '+(m.motivo||'');
+      if(m.editado_em)status+=' | EDITADO em '+new Date(m.editado_em).toLocaleString('pt-BR')+' — '+(m.motivo_edicao||'Correção');
       return '<tr'+(m.cancelado_em?' style="opacity:.65"':'')+'><td>'+esc(new Date(m.created_at).toLocaleString('pt-BR'))+'</td><td>'+auditActor(m.created_by,'Histórico anterior')+'</td><td class="eq-mono">'+esc(m.codigo)+'</td><td>'+esc(m.tamanho)+'</td><td>'+esc(m.tipo)+'</td><td>'+esc(m.qtd)+'</td><td>'+esc(fmtBRL(m.valor))+'</td><td>'+esc(fmtBRL(m.custo_unitario))+'</td><td>'+auditActor(m.cancelado_por,'—')+'</td><td>'+esc(status)+'</td></tr>';
     }).join('');
   }
@@ -1243,13 +1312,11 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       var receivedValue=total*(percent/100);
       var badge=percent===100?'pago':percent===50?'parcial':'pendente';
       var label=percent===100?'100% pago':percent===50?'50% pago':'Não informado';
-      var actions=percent===50
-        ? '<button class="eq-btn-ghost" data-payment="100" data-sale="'+esc(m.id)+'">Marcar 100%</button>'
-        : percent===0
-          ? '<button class="eq-btn-ghost" data-payment="50" data-sale="'+esc(m.id)+'">Marcar 50%</button> <button class="eq-btn-ghost" data-payment="100" data-sale="'+esc(m.id)+'">Marcar 100%</button>'
-          : '';
+      var quickPayment=percent===50?'<button class="eq-btn-ghost" data-payment="100" data-sale="'+esc(m.id)+'">Marcar 100%</button>':percent===0?'<button class="eq-btn-ghost" data-payment="50" data-sale="'+esc(m.id)+'">Marcar 50%</button> <button class="eq-btn-ghost" data-payment="100" data-sale="'+esc(m.id)+'">Marcar 100%</button>':'';
+      var actions='<button class="eq-btn-ghost" data-editsale="'+esc(m.id)+'">Editar</button> '+quickPayment;
       return '<tr><td class="eq-mono">'+esc(fmtDate(m.data))+'</td><td>'+esc(m.motivo||'—')+'</td><td class="eq-mono">'+esc(m.codigo)+' / '+esc(m.tamanho)+'</td><td>'+esc(m.qtd)+'</td><td>'+esc(fmtBRL(total))+'</td><td>'+esc(fmtBRL(receivedValue))+'<div class="eq-payment-bar"><div class="eq-payment-fill" style="width:'+percent+'%"></div></div></td><td><span class="eq-badge '+badge+'">'+label+'</span></td><td class="eq-row-actions">'+actions+'</td></tr>';
     }).join('');
+    Array.prototype.forEach.call(body.querySelectorAll('[data-editsale]'),function(btn){btn.addEventListener('click',function(){openEditMovement(btn.getAttribute('data-editsale'));});});
     Array.prototype.forEach.call(body.querySelectorAll('[data-payment]'),function(btn){
       btn.addEventListener('click',async function(){
         if(btn.disabled)return;
@@ -1316,6 +1383,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     document.getElementById('btn-saida').classList.add('on');
     document.getElementById('btn-entrada').classList.remove('on');
     document.getElementById('mov-pagamento-wrap').style.display='';
+    document.getElementById('mov-percentual-pago').value='0';
     renderMovModeloBlocks();
     renderMovCorBlocks();
     renderMovTamanhoBlocks();
@@ -1372,6 +1440,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     document.getElementById('mov-qtd').value = 1;
     document.getElementById('mov-motivo').value = '';
     document.getElementById('mov-obs').value = '';
+    if(movTipo==='Saída')document.getElementById('mov-percentual-pago').value='0';
     renderAll();
     toast((movTipo==='Entrada'?'Entrada':'Saída') + ' registrada: ' + qtd + ' un. de ' + p.codigo + ' (tamanho ' + tamanho + ').');
     } finally { submitBtn.disabled=false; }
