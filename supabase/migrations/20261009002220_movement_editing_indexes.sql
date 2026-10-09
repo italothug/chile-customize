@@ -1,0 +1,2 @@
+create index if not exists movements_editado_por_idx on public.movements(editado_por) where editado_por is not null;
+create index if not exists movement_edits_edited_by_idx on public.movement_edits(edited_by) where edited_by is not null;
