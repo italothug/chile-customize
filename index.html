@@ -481,20 +481,27 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     var mv=movements.concat(auditMovements).filter(function(x){return String(x.id)===String(id);})[0];
     if(!mv){toast('Movimentação não encontrada.',true);return;}if(mv.cancelado_em){toast('Movimentações canceladas não podem ser editadas.',true);return;}
     var payment=Number(mv.percentual_pago||0);
+    var produto=products.filter(function(p){return p.codigo===mv.codigo;})[0];
+    var tamanhos=produto&&Array.isArray(produto.tamanhos)?produto.tamanhos.slice():[mv.tamanho||'-'];
+    if(tamanhos.indexOf(mv.tamanho)===-1)tamanhos.push(mv.tamanho);
+    tamanhos.sort(function(a,b){return sizeRank(a)-sizeRank(b);});
+    var tamanhoOptions=tamanhos.map(function(t){return '<option value="'+esc(t)+'"'+(t===mv.tamanho?' selected':'')+'>'+esc(t)+'</option>';}).join('');
     var html='<div class="eq-edit-note">A correção será aplicada ao estoque e registrada na auditoria. O custo fotografado da saída não será alterado.</div><div class="eq-form full" style="margin:0">'+
-      '<div class="eq-field"><label>Movimento</label><input value="'+esc(mv.tipo+' — '+mv.codigo+' / '+(mv.tamanho||'-'))+'" disabled></div>'+
+      '<div class="eq-field"><label>Movimento</label><input value="'+esc(mv.tipo+' — '+mv.codigo)+'" disabled></div>'+
+      '<div class="eq-field"><label>Tamanho</label><select id="edit-mov-tamanho">'+tamanhoOptions+'</select></div>'+
       '<div class="eq-field"><label>Quantidade</label><input id="edit-mov-qtd" type="number" min="1" step="1" value="'+esc(mv.qtd)+'"></div>'+
       '<div class="eq-field"><label>Valor unitário real (R$)</label><input id="edit-mov-valor" type="number" min="0" step="0.01" value="'+esc(Number(mv.valor||0).toFixed(2))+'"></div>'+
       (mv.tipo==='Saída'?'<div class="eq-field"><label>Pagamento recebido</label><select id="edit-mov-pagamento"><option value="0"'+(payment===0?' selected':'')+'>0% — ainda não recebido</option><option value="50"'+(payment===50?' selected':'')+'>50% — entrada / sinal</option><option value="100"'+(payment===100?' selected':'')+'>100% — pagamento completo</option></select></div>':'')+
       '<div class="eq-field"><label>Motivo da correção</label><textarea id="edit-mov-motivo" placeholder="Ex.: quantidade ou valor lançado incorretamente"></textarea></div></div>'+
       '<div class="eq-modal-actions"><button type="button" class="eq-btn-ghost" id="edit-mov-cancel">Voltar</button><button type="button" class="eq-btn-stamp" id="edit-mov-save" style="grid-column:auto">Salvar correção</button></div>';
-    openModal('Editar movimento','Corrija quantidade, valor e pagamento.',html,async function(){
+    openModal('Editar movimento','Corrija tamanho, quantidade, valor e pagamento.',html,async function(){
+      var tamanho=document.getElementById('edit-mov-tamanho').value;
       var qtd=Number(document.getElementById('edit-mov-qtd').value),valor=Number(document.getElementById('edit-mov-valor').value),motivo=document.getElementById('edit-mov-motivo').value.trim();
       var percentual=mv.tipo==='Saída'?Number(document.getElementById('edit-mov-pagamento').value):null;
       if(!Number.isInteger(qtd)||qtd<=0){toast('Informe uma quantidade inteira maior que zero.',true);return;}
       if(!Number.isFinite(valor)||valor<0){toast('Informe um valor válido.',true);return;}if(!motivo){toast('Informe o motivo da correção.',true);return;}
       var save=document.getElementById('edit-mov-save');if(save.disabled)return;save.disabled=true;
-      try{var result=await db.rpc('editar_movimento',{p_id:String(mv.id),p_qtd:qtd,p_valor:valor,p_percentual_pago:percentual,p_motivo_edicao:motivo});if(result.error)throw result.error;closeModal();await loadData();toast('Movimento corrigido e alteração registrada na auditoria.');}
+      try{var result=await db.rpc('editar_movimento_v2',{p_id:String(mv.id),p_tamanho:tamanho,p_qtd:qtd,p_valor:valor,p_percentual_pago:percentual,p_motivo_edicao:motivo});if(result.error)throw result.error;closeModal();await loadData();toast('Movimento corrigido e alteração registrada na auditoria.');}
       catch(e){console.error(e);toast('Não consegui editar o movimento: '+(e.message||e),true);save.disabled=false;}
     });
     document.getElementById('edit-mov-cancel').addEventListener('click',closeModal);
