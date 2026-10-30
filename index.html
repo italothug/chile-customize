@@ -359,7 +359,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   #eq-login-gate #show-password{background:var(--ink-3);color:var(--tx);margin-bottom:12px;}
   @media(max-width:820px){
     .eq-main .eq-body{padding-bottom:110px;}
-    .eq-sidebar .eq-tabs{position:fixed;bottom:0;left:0;right:0;z-index:9000;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:8px 4px calc(8px + env(safe-area-inset-bottom));background:var(--ink-2);border-top:1px solid var(--line);overflow:visible;}
+    .eq-sidebar .eq-tabs{position:fixed;bottom:0;left:0;right:0;z-index:9000;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;padding:8px 4px calc(8px + env(safe-area-inset-bottom));background:var(--ink-2);border-top:1px solid var(--line);overflow:visible;}
     .eq-sidebar .eq-tab{width:100%;padding:12px 2px;font-size:12px;text-align:center;white-space:normal;}
     .eq-sidebar{position:static;}
     .eq-list-tools{align-items:stretch;flex-direction:column;}
@@ -371,6 +371,11 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   .eq-block-btn.active,.eq-group-tab.active{background:var(--ink-3);border-color:var(--tx-2);color:var(--tx);}
   table.eq-table .eq-btn-ghost,table.eq-table .eq-btn-danger{min-height:44px;min-width:44px;}
   .eq-modal input,.eq-modal select,.eq-modal textarea{min-height:44px;}
+
+  #dtf-calculator{display:block;width:100%;height:700px;border:0;background:var(--ink);color-scheme:dark;}
+  .eq-calc-short,.eq-movement-short{display:none;}
+  @media(max-width:520px){.eq-movement-full{display:none;}.eq-movement-short{display:inline;}}
+  @media(max-width:820px){.eq-calc-full{display:none;}.eq-calc-short{display:inline;}}
 </style>
 </head>
 <body>
@@ -390,8 +395,9 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       <div class="eq-brand"><span>#</span>UseChile</div>
       <div class="eq-tabs" role="tablist">
         <button class="eq-tab active" data-tab="painel">Painel</button>
-        <button class="eq-tab" data-tab="movimentar">Movimentar</button>
+        <button class="eq-tab" data-tab="movimentar" aria-label="Movimentar estoque"><span class="eq-movement-full">Movimentar</span><span class="eq-movement-short" aria-hidden="true">Mov.</span></button>
         <button class="eq-tab" data-tab="vendas">Vendas</button>
+        <button class="eq-tab" data-tab="calculadora" aria-label="Calculadora DTF"><span class="eq-calc-full">Calculadora DTF</span><span class="eq-calc-short" aria-hidden="true">DTF</span></button>
         <button class="eq-tab" data-tab="produtos">Produtos</button>
         <button class="eq-tab" data-tab="historico">Histórico</button>
       </div>
@@ -514,6 +520,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       </table></div>
     </div>
 
+    <div class="eq-panel" id="panel-calculadora"><iframe id="dtf-calculator" src="/calculadora-dtf.html?embedded=1" title="Calculadora DTF: custos e orçamento" allow="clipboard-write"></iframe></div>
     <div class="eq-panel" id="panel-produtos">
       <div class="eq-split">
         <div class="eq-split-col">
@@ -1635,11 +1642,11 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       root.querySelectorAll('.eq-panel').forEach(function(p){ p.classList.remove('active'); });
       tab.classList.add('active');
       document.getElementById('panel-' + tab.getAttribute('data-tab')).classList.add('active');
-      var titles={painel:'Visão geral',movimentar:'Movimentar estoque',vendas:'Acompanhamento de vendas',produtos:'Produtos',historico:'Histórico e auditoria'};
+      var titles={painel:'Visão geral',movimentar:'Movimentar estoque',vendas:'Acompanhamento de vendas',calculadora:'Calculadora DTF',produtos:'Produtos',historico:'Histórico e auditoria'};
       document.querySelector('.eq-title').textContent=titles[tab.getAttribute('data-tab')]||'#UseChile';
       if(location.hash!=='#'+tab.dataset.tab)location.hash=tab.dataset.tab;
       document.getElementById('quick-movement').hidden=tab.dataset.tab==='movimentar';
-      var subs={painel:'Quanto tem de cada peça e o que precisa repor.',movimentar:'Registre entradas e saídas; o estoque atualiza na hora.',vendas:'O que foi vendido e quanto já entrou.',produtos:'Cadastro, preços e estoque mínimo de cada variação.',historico:'Tudo que foi lançado, inclusive o que foi cancelado ou corrigido.'};
+      var subs={painel:'Quanto tem de cada peça e o que precisa repor.',movimentar:'Registre entradas e saídas; o estoque atualiza na hora.',vendas:'O que foi vendido e quanto já entrou.',calculadora:'Calcule custos, margens e orçamentos das peças personalizadas.',produtos:'Cadastro, preços e estoque mínimo de cada variação.',historico:'Tudo que foi lançado, inclusive o que foi cancelado ou corrigido.'};
       document.getElementById('page-sub').textContent=subs[tab.getAttribute('data-tab')]||'';
     });
   });
@@ -1807,6 +1814,21 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   document.getElementById('new-product').onclick=function(){openModal('Novo produto','Preencha os dados da variação.','');productFormHome=productHome;document.getElementById('eq-modal-content').appendChild(productForm);document.getElementById('p-modelo').focus();};
   document.getElementById('product-search').oninput=renderProdTable;document.getElementById('product-status').onchange=renderProdTable;
   document.getElementById('history-apply').onclick=function(){if(historyBusy)return;historyPage=0;loadHistory();};document.getElementById('history-prev').onclick=function(){if(historyBusy)return;if(historyPage>0)historyPage--;loadHistory();};document.getElementById('history-next').onclick=function(){if(historyBusy)return;historyPage++;loadHistory();};
+  var calculatorFrame=document.getElementById('dtf-calculator');
+  function connectCalculator(){
+    var doc=calculatorFrame.contentDocument;if(!doc)return;
+    var content=doc.querySelector('.wrap');if(!content)return;
+    function fitCalculator(){
+      if(!calculatorFrame.getClientRects().length)return;
+      var height=Math.ceil(content.getBoundingClientRect().bottom+doc.defaultView.scrollY+24);
+      if(calculatorFrame.style.height!==height+'px')calculatorFrame.style.height=height+'px';
+    }
+    var resize=new ResizeObserver(fitCalculator);resize.observe(content);resize.observe(calculatorFrame);
+    if(doc.fonts)doc.fonts.ready.then(fitCalculator);
+    fitCalculator();
+  }
+  calculatorFrame.addEventListener('load',connectCalculator);
+  if(calculatorFrame.contentDocument&&calculatorFrame.contentDocument.readyState==='complete')connectCalculator();
   checkAuthAndInit();
 })();
 </script>

@@ -1,0 +1,1007 @@
+<!doctype html><html lang="pt-BR"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Calculadora DTF — #UseChile</title><script>if(new URLSearchParams(location.search).has("embedded"))document.body.classList.add("embedded");</script>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&display=swap">
+<style>
+/* Layout: barra de topo com o nome e o resumo do pedido; título e achado; duas colunas (formulário à esquerda, ficha do pedido à direita).
+   Um só espaçamento (12px), cartões de 8px com borda de 1px e sem sombra, uma só família (Geist), cor só nos dados:
+   no preço por peça, o azul marca o lucro; tudo o mais é tinta e cinzas. */
+:root {
+  --ground: #f4f3f1;
+  --surface: #ffffff;
+  --raised: #eeede9;
+  --border: #e4e2de;
+  --rule: #efeeea;
+  --control: #cfcdc8;
+  --text: #0a0a0a;
+  --muted: #65635f;
+  --primary: #141414;
+  --primary-ink: #ffffff;
+  --hue: #1d5fbf;
+  --sel: #cfe0fb;
+  --negative: #c4242a;
+  --s1: #141414; --s2: #4d4d4d; --s3: #7d7d7d; --s4: #a6a6a6; --s5: #c6c6c6; --s6: #dcdcdc;
+  --warn-bg: #fffbeb; --warn-bd: #fde68a; --warn-ink: #92400e;
+  --neg-bg: #ffedea; --neg-bd: #f5c2bd; --neg-ink: #831c1e;
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --gap: 12px;
+  --card-pad: 20px;
+  --control-h: 36px;
+  --font: "Geist", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0f0f10; --surface: #171718; --raised: #232325; --border: #2a2a2d; --rule: #212123; --control: #3d3d41;
+    --text: #f5f5f5; --muted: #a3a3a8; --primary: #f5f5f5; --primary-ink: #0a0a0a;
+    --hue: #6ea3ff; --sel: #1f3d73; --negative: #ff7a85;
+    --s1: #f2f2f2; --s2: #bdbdbd; --s3: #8e8e8e; --s4: #666669; --s5: #4a4a4e; --s6: #36363a;
+    --warn-bg: #2a2210; --warn-bd: #5c4a16; --warn-ink: #f0b255;
+    --neg-bg: #2c1a20; --neg-bd: #5a2a32; --neg-ink: #ff9aa5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0f0f10; --surface: #171718; --raised: #232325; --border: #2a2a2d; --rule: #212123; --control: #3d3d41;
+  --text: #f5f5f5; --muted: #a3a3a8; --primary: #f5f5f5; --primary-ink: #0a0a0a;
+  --hue: #6ea3ff; --sel: #1f3d73; --negative: #ff7a85;
+  --s1: #f2f2f2; --s2: #bdbdbd; --s3: #8e8e8e; --s4: #666669; --s5: #4a4a4e; --s6: #36363a;
+  --warn-bg: #2a2210; --warn-bd: #5c4a16; --warn-ink: #f0b255;
+  --neg-bg: #2c1a20; --neg-bd: #5a2a32; --neg-ink: #ff9aa5;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--control) transparent; }
+::selection { background: var(--sel); color: var(--text); }
+body {
+  background: var(--ground); color: var(--text);
+  font-family: var(--font); font-size: 14px; line-height: 1.5;
+  font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1;
+  caret-color: var(--text);
+  padding-bottom: 48px;
+}
+:focus-visible { outline: 2px solid var(--hue); outline-offset: 2px; }
+
+.bar { border-bottom: 1px solid var(--border); }
+.bar-in, .wrap {
+  max-width: 1200px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.bar-in { height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 500; white-space: nowrap; }
+.brand svg { width: 20px; height: 20px; flex: none; }
+.bar-sum { color: var(--muted); font-size: 13px; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bar-sum:hover { color: var(--text); }
+
+.titlerow { display: flex; flex-direction: column; gap: 4px; padding-block: 24px 16px; }
+h1 { font-size: 24px; line-height: 1.25; font-weight: 500; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 14px; margin: 0; max-width: 72ch; min-height: 21px; text-wrap: pretty; }
+h2 { font-size: 16px; line-height: 1.3; font-weight: 500; margin: 0 0 14px; }
+.grp { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: var(--gap); align-items: start; }
+.col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: var(--card-pad); min-width: 0; }
+.ticket { position: sticky; top: 12px; border-color: var(--control); max-height: calc(100vh - 24px); overflow-y: auto; }
+
+label.f { display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; font-size: 13px; font-weight: 500; line-height: 1.3; color: var(--muted); min-width: 0; }
+input[type="number"], input[type="text"], select {
+  font: inherit; font-size: 14px; font-weight: 400; color: var(--text);
+  background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control);
+  height: var(--control-h); padding: 0 10px; width: 100%; min-width: 0;
+}
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input::placeholder { color: var(--muted); opacity: 1; }
+input:hover, select:hover { border-color: var(--muted); }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--gap); align-items: end; }
+.sep { height: 0; border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
+
+.models { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.model { text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control); padding: 10px 12px; min-height: 56px; cursor: pointer; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.model b { font-size: 14px; font-weight: 500; }
+.model small { font-size: 12px; color: var(--muted); }
+.model:hover { background: var(--raised); }
+.model[aria-pressed="true"] { border-color: var(--text); outline: 1px solid var(--text); outline-offset: -1px; background: var(--raised); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.chip { font: inherit; font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control); height: 28px; padding: 0 10px; cursor: pointer; }
+.chip:hover { background: var(--raised); }
+
+.check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--text); margin: 0; }
+
+.artwrap { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; align-items: start; }
+@media (max-width: 520px) { .artwrap { grid-template-columns: minmax(0, 1fr); } .preview { max-width: 280px; } }
+.sizes { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+.sz { font: inherit; font-size: 13px; font-weight: 500; min-width: 38px; height: 30px; padding: 0 8px; color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control); cursor: pointer; }
+.sz:hover { background: var(--raised); }
+.sz[aria-pressed="true"] { border-color: var(--text); outline: 1px solid var(--text); outline-offset: -1px; background: var(--raised); }
+.sizegrid { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; align-items: center; max-width: 420px; margin-bottom: 4px; }
+.sizegrid .hd { font-size: 12px; font-weight: 500; color: var(--muted); }
+.sizegrid b { font-size: 14px; font-weight: 500; }
+.art.over { fill-opacity: .25; stroke: var(--negative); stroke-width: 0.8; }
+.preview .stage > svg { width: 100%; height: auto; display: block; }
+.prevbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.prevbar .side { font-size: 13px; font-weight: 500; }
+.flip { width: var(--control-h); height: var(--control-h); display: grid; place-items: center; padding: 0; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); cursor: pointer; flex: none; }
+.flip:hover { background: var(--raised); }
+.flip svg { width: 18px; height: 18px; display: block; }
+.neck { fill: none; stroke: var(--control); stroke-width: 0.8; }
+.preview .cap { font-size: 12px; color: var(--muted); text-align: center; margin-top: 4px; }
+.shirt { fill: var(--raised); stroke: var(--control); stroke-width: 0.8; }
+.art { fill: var(--text); fill-opacity: .8; }
+
+.fit { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.fit b { color: var(--text); font-weight: 500; }
+
+.tiers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.tiers .hd { font-size: 12px; font-weight: 500; color: var(--muted); }
+
+details.addp { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+details.addp summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+details.addp summary::-webkit-details-marker { display: none; }
+details.addp summary::before { content: "+"; font-size: 16px; line-height: 1; width: 16px; text-align: center; }
+details.addp[open] summary::before { content: "\2212"; }
+details.addp summary:hover { color: var(--text); }
+.addp-body { margin-top: 12px; }
+.chips:empty { display: none; }
+.costrow { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 8px 12px; align-items: center; margin-bottom: 8px; }
+.costhead { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 4px; }
+.costrow .x { font: inherit; font-size: 18px; line-height: 1; width: var(--control-h); height: var(--control-h); border-radius: var(--radius-control); border: 1px solid var(--control); background: var(--surface); color: var(--muted); cursor: pointer; }
+.costrow .x:hover { color: var(--negative); border-color: var(--negative); }
+@media (max-width: 640px) {
+  .costhead { display: none; }
+  .costrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .costrow > input[type="text"] { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) { th, td { padding: 9px 7px; } }
+details.fold { padding: 0; }
+details.fold summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 16px var(--card-pad); border-radius: var(--radius-card); }
+details.fold summary::-webkit-details-marker { display: none; }
+details.fold summary::after { content: ""; width: 7px; height: 7px; margin-left: 4px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: translateY(-2px) rotate(45deg); flex: none; align-self: center; }
+details.fold[open] summary::after { transform: translateY(1px) rotate(225deg); }
+details.fold summary:hover { background: var(--raised); }
+.ft { font-size: 16px; font-weight: 500; }
+.fs { font-size: 13px; color: var(--muted); margin-left: auto; text-align: right; min-width: 0; }
+.fold-body { padding: 4px var(--card-pad) var(--card-pad); }
+
+/* Ficha do pedido */
+.tk-head { font-size: 13px; color: var(--muted); }
+.big { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 16px; flex-wrap: wrap; }
+.big .v { font-size: 36px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; }
+.big small { font-size: 14px; color: var(--muted); font-weight: 400; }
+.cap { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.bars { display: flex; gap: 2px; height: 12px; margin-bottom: 8px; }
+.bars i { display: block; height: 100%; min-width: 2px; border-radius: 2px; }
+.s1 { background: var(--s1); } .s2 { background: var(--s2); } .s3 { background: var(--s3); }
+.s4 { background: var(--s4); } .s5 { background: var(--s5); } .s6 { background: var(--s6); }
+.sh { background: var(--hue); }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+.kv > span:first-child { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.kv > span:last-child { text-align: right; white-space: nowrap; }
+.sw { width: 8px; height: 8px; border-radius: 2px; flex: none; align-self: center; display: inline-block; }
+.kv.sub { font-weight: 500; border-top-color: var(--border); }
+.kv.gain > span:last-child { font-weight: 700; }
+.kv.total { font-weight: 700; font-size: 15px; border-top-color: var(--control); }
+.kv.top { margin-top: 8px; border-top-color: var(--control); }
+.kv.neg > span:last-child, .kv.loss > span:last-child { color: var(--negative); }
+.kv.profit > span:last-child { font-weight: 700; }
+.warn { margin: 12px 0 0; padding: 8px 12px; border-radius: var(--radius-control); background: var(--warn-bg); border: 1px solid var(--warn-bd); color: var(--warn-ink); font-size: 13px; }
+.warn.bad { background: var(--neg-bg); border-color: var(--neg-bd); color: var(--neg-ink); }
+.tk-sec { font-size: 14px; font-weight: 500; }
+
+button.primary, button.secondary { width: 100%; margin-top: 12px; height: var(--control-h); font: inherit; font-size: 14px; font-weight: 500; border-radius: var(--radius-control); padding: 0 14px; cursor: pointer; }
+button.primary { background: var(--primary); color: var(--primary-ink); border: 1px solid var(--primary); }
+button.primary:hover { opacity: .88; }
+button.primary:disabled { opacity: .4; cursor: not-allowed; }
+button.secondary { background: var(--surface); color: var(--text); border: 1px solid var(--control); }
+button.secondary:hover { background: var(--raised); }
+button.linkbtn { font: inherit; font-size: 13px; background: none; border: 0; color: var(--muted); text-decoration: underline; cursor: pointer; padding: 8px 0 0; }
+button.linkbtn:hover { color: var(--text); }
+
+.order-empty { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.oi { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 4px 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--rule); }
+.oi .t { min-width: 0; }
+.oi .t b { display: block; font-size: 14px; font-weight: 500; }
+.oi .t span { display: block; font-size: 13px; color: var(--muted); }
+.oi .p { font-size: 14px; text-align: right; }
+.oi .p small { display: block; font-size: 12px; color: var(--muted); }
+.oi .x { font: inherit; font-size: 18px; line-height: 1; width: 32px; height: 32px; border-radius: var(--radius-control); border: 1px solid var(--control); background: var(--surface); color: var(--muted); cursor: pointer; }
+.oi .x:hover { color: var(--negative); border-color: var(--negative); }
+.disc { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-top: 12px; align-items: end; }
+.chips.small { margin: 8px 0 0; }
+
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 9px 10px; text-align: right; white-space: nowrap; }
+td { border-bottom: 1px solid var(--rule); }
+th { font-size: 12px; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+th:last-child, td:last-child { padding-right: 0; }
+tr.cur td { background: var(--raised); font-weight: 500; }
+tr.cur td:first-child { padding-left: 10px; }
+.note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+
+.dock { display: none; }
+@media (max-width: 880px) {
+  :root { --control-h: 44px; }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .ticket { position: static; max-height: none; overflow: visible; }
+  body { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+    padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    background: var(--surface); border-top: 1px solid var(--control); color: var(--text); text-decoration: none;
+  }
+  .dock b { font-weight: 700; font-size: 17px; }
+  .dock small { color: var(--muted); font-size: 13px; }
+  .dock .dk { font-size: 13px; color: var(--muted); }
+  .dock .dk b { color: var(--text); font-size: 15px; }
+}
+@keyframes turn { 0% { transform: scaleX(1); } 50% { transform: scaleX(0.04); } 100% { transform: scaleX(1); } }
+@media (prefers-reduced-motion: no-preference) {
+  #shirtSvg.turn { animation: turn .28s ease-in-out; }
+  .model, .chip, button, input, select, details.fold summary { transition: background-color .12s ease, border-color .12s ease, opacity .12s ease; }
+}
+
+/* #UseChile: shared palette and control treatment, original calculator typography. */
+:root,:root[data-theme="dark"],:root[data-theme="light"]{
+  color-scheme:dark;
+  --ground:#0d0f14;--surface:#1c1f28;--raised:#242835;
+  --border:#2d313f;--rule:#252836;--control:#414657;
+  --text:#f4f1ea;--muted:#a7abb8;
+  --primary:#b91e5d;--primary-ink:#fff;
+  --hue:#ef8ab2;--sel:#3a1f2c;--negative:#ff7a8f;
+  --s1:#eeeae2;--s2:#b8bbc6;--s3:#9298aa;--s4:#737b90;--s5:#555e73;--s6:#3c455a;
+  --warn-bg:#3a2a10;--warn-bd:#ffb648;--warn-ink:#ffd087;
+  --neg-bg:#3a1a22;--neg-bd:#ff7a8f;--neg-ink:#ffb6c2;
+  --radius-card:12px;--radius-control:8px;--control-h:44px;
+}
+.row{grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));}
+.chip,.sz{height:auto;min-height:44px;min-width:44px;}
+.oi .x{width:44px;height:44px;}
+button.linkbtn{min-height:44px;}
+.artwrap>*{min-width:0;}
+.kv{flex-wrap:wrap;}
+.kv>span:last-child{margin-left:auto;}
+.embedded .bar,.embedded .titlerow h1,.embedded .dock{display:none;}
+.embedded .wrap{max-width:none;padding:0;}
+.embedded .titlerow{padding-top:0;}
+.embedded .ticket{position:static;max-height:none;overflow:visible;}
+body.embedded{padding:0 0 16px;}
+@media(max-width:380px){.panel{padding:16px;}.tiers,.disc{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.costrow{gap:6px;}}
+</style>
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="brand"><svg viewBox="0 0 80 84" fill="none" stroke="currentColor" stroke-width="6" stroke-linejoin="round" aria-hidden="true"><path d="M30 4 Q40 12 50 4 L74 14 L68 30 L65 27 L65 80 L15 80 L15 27 L12 30 L6 14 Z"/></svg>Calculadora DTF</span>
+    <a class="bar-sum" id="barSum" href="#ticket">Nenhum item no pedido</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="titlerow">
+    <h1>Orçamento</h1>
+    <p class="sub" id="finding"></p>
+  </div>
+
+  <div class="grid">
+    <div class="col">
+
+      <section class="panel">
+        <h2>Produto</h2>
+        <div class="models" id="models"></div>
+        <details class="addp" id="addp">
+        <summary>Adicionar produto</summary>
+        <div class="addp-body">
+        <div class="row">
+          <label class="f">Nome do produto<input id="np_nome" type="text" maxlength="40" placeholder="Ex.: Regata, Moletom"></label>
+          <label class="f">Quanto você paga por ele sem estampa (R$)<input id="np_custo" type="number" inputmode="decimal" min="0" step="0.5"></label>
+          <label class="f">Seu preço de venda atual (R$, opcional)<input id="np_preco" type="number" inputmode="decimal" min="0" step="0.5"></label>
+        </div>
+        <div class="grp" style="margin:16px 0 8px">Medidas de cada tamanho, em cm (do P ao GG)</div>
+        <div class="sizegrid">
+          <span></span><span class="hd">Altura</span><span class="hd">Largura</span>
+          <b>P</b><input id="np_P_h" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Altura do tamanho P (cm)"><input id="np_P_w" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Largura do tamanho P (cm)">
+          <b>M</b><input id="np_M_h" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Altura do tamanho M (cm)"><input id="np_M_w" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Largura do tamanho M (cm)">
+          <b>G</b><input id="np_G_h" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Altura do tamanho G (cm)"><input id="np_G_w" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Largura do tamanho G (cm)">
+          <b>GG</b><input id="np_GG_h" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Altura do tamanho GG (cm)"><input id="np_GG_w" type="number" inputmode="decimal" min="1" step="0.5" aria-label="Largura do tamanho GG (cm)">
+        </div>
+        <button class="secondary" id="np_add" type="button">Adicionar produto</button>
+        <p class="note" id="np_msg" style="min-height:1.2em"></p>
+        </div>
+        </details>
+        <div class="chips" id="np_list" style="margin:12px 0 0"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Arte e quantidade</h2>
+        <div class="artwrap">
+          <div>
+            <div style="display:flex; flex-direction:column; gap:10px">
+              <label class="check"><input id="front" type="checkbox"> Arte na frente</label>
+              <label class="check"><input id="back" type="checkbox"> Arte nas costas</label>
+            </div>
+            <div id="frontBlock" style="margin-top:14px" hidden>
+              <div class="grp" style="margin-bottom:8px">Tamanho da arte na frente</div>
+              <div class="chips" id="presets"></div>
+              <div class="row">
+                <label class="f">Largura (cm)<input id="w" type="number" inputmode="decimal" min="1" step="0.5"></label>
+                <label class="f">Altura (cm)<input id="h" type="number" inputmode="decimal" min="1" step="0.5"></label>
+              </div>
+            </div>
+            <div id="backRow" style="margin-top:14px" hidden>
+              <div class="grp" style="margin-bottom:8px">Tamanho da arte nas costas</div>
+              <div class="row">
+                <label class="f">Largura (cm)<input id="bw" type="number" inputmode="decimal" min="1" step="0.5"></label>
+                <label class="f">Altura (cm)<input id="bh" type="number" inputmode="decimal" min="1" step="0.5"></label>
+              </div>
+            </div>
+            <p class="fit" id="fit"></p>
+          </div>
+          <div class="preview">
+            <div class="grp" id="sizesLbl">Tamanho</div>
+            <div class="sizes" id="sizes" role="group" aria-labelledby="sizesLbl"></div>
+            <div class="prevbar">
+              <span class="side" id="sideLbl">Frente</span>
+              <button class="flip" id="flip" type="button" aria-label="Virar a blusa (mostrando a frente)" title="Frente e verso">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.5-4.4"/><path d="M5.5 3v3.6H9"/><path d="M4 13a8 8 0 0 0 14.5 4.4"/><path d="M18.5 21v-3.6H15"/></svg>
+              </button>
+            </div>
+            <div class="stage">
+              <svg id="shirtSvg" viewBox="0 0 80 84" role="img" aria-label="Arte da frente no tamanho real sobre uma blusa de 50 por 70 centímetros">
+                <path class="shirt" id="shirtPath" d="M30 4 Q40 12 50 4 L74 14 L68 30 L65 27 L65 80 L15 80 L15 27 L12 30 L6 14 Z"/>
+                <path class="neck" id="neckPath" d="M30 4 Q40 12 50 4"/>
+                <rect class="art" id="artRect" x="30" y="16" width="20" height="25" rx="1"/>
+              </svg>
+            </div>
+            <div class="cap" id="prevCap">escala real · blusa 50×70 cm</div>
+          </div>
+        </div>
+        <hr class="sep">
+        <div class="row">
+          <label class="f">Quantidade de peças<input id="qty" type="number" inputmode="numeric" min="1" step="1"></label>
+          <label class="f">Custo fixo do item (R$)<input id="fixo" type="number" inputmode="decimal" min="0" step="0.5"></label>
+        </div>
+        <p class="note">Custo fixo é o que você gasta uma vez por arte, como a criação ou ajuste. Ele é dividido pela quantidade desse item.</p>
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:14px">
+          <label class="check"><input id="useBag" type="checkbox"> Entregar cada peça em uma sacola</label>
+          <label class="check"><input id="round" type="checkbox"> Arredondar o preço para terminar em ,90</label>
+        </div>
+      </section>
+
+      <details class="panel fold" id="foldMargem">
+        <summary><span class="ft">Margem por quantidade</span><span class="fs" id="sumMargem"></span></summary>
+        <div class="fold-body">
+        <p class="note" style="margin:0 0 12px">Margem é a parte do preço de venda que sobra de lucro. Quanto maior o pedido, menor a margem por peça.</p>
+        <div class="tiers" id="tiers"></div>
+        <label class="f" style="margin-top:14px">A faixa de margem conta
+          <select id="faixa">
+            <option value="total">o total de peças do pedido</option>
+            <option value="item">as peças de cada item separadamente</option>
+          </select>
+        </label>
+        <p class="note">Vale para pedidos com mais de uma personalização. No total do pedido, 3 peças de uma arte e 3 de outra já entram na faixa de 5 peças.</p>
+        </div>
+      </details>
+
+      <details class="panel fold" id="foldCustos">
+        <summary><span class="ft">Seus custos</span><span class="fs" id="sumCustos"></span></summary>
+        <div class="fold-body">
+        <div class="grp" style="margin-bottom:8px">Produtos sem estampa (fornecedor)</div>
+        <div class="row" id="garments"></div>
+        <hr class="sep">
+        <div class="grp" style="margin-bottom:8px">Seu preço de venda atual (deixe vazio se não vende)</div>
+        <div class="row" id="atuais"></div>
+        <hr class="sep">
+        <div class="grp" style="margin-bottom:8px">Materiais adicionais</div>
+        <div class="row">
+          <label class="f">Rolo de DTF (R$)<input id="rollPrice" type="number" inputmode="decimal" min="0" step="0.5"></label>
+          <label class="f">Largura do rolo (cm)<input id="rollW" type="number" inputmode="decimal" min="1" step="1"></label>
+          <label class="f">Comprimento do rolo (cm)<input id="rollH" type="number" inputmode="decimal" min="1" step="1"></label>
+          <label class="f">Pacote de sacolas (R$)<input id="bagPrice" type="number" inputmode="decimal" min="0" step="0.5"></label>
+          <label class="f">Sacolas no pacote<input id="bagQty" type="number" inputmode="numeric" min="1" step="1"></label>
+        </div>
+        <div class="grp" style="margin:16px 0 8px">Custos extras</div>
+        <div id="costList"></div>
+        <button class="secondary" id="costAdd" type="button" style="width:auto;padding:0 16px;margin-top:4px">Adicionar custo</button>
+        <hr class="sep">
+        <div class="grp" style="margin-bottom:8px">Outros custos (valores de exemplo, ajuste)</div>
+        <div class="row">
+          <label class="f">Perda de DTF (%)<input id="perda" type="number" inputmode="decimal" min="0" step="1"></label>
+          <label class="f">Tempo de trabalho por peça (minutos)<input id="minutos" type="number" inputmode="decimal" min="0" step="5"></label>
+          <label class="f">Quanto vale a sua hora (R$)<input id="hora" type="number" inputmode="decimal" min="0" step="0.5"></label>
+          <label class="f">Energia e desgaste da prensa por peça (R$)<input id="energia" type="number" inputmode="decimal" min="0" step="0.1"></label>
+          <label class="f">Taxas de Pix ou cartão (%)<input id="taxas" type="number" inputmode="decimal" min="0" step="0.1"></label>
+        </div>
+        </div>
+      </details>
+
+      <section class="panel">
+        <h2>Preço por quantidade, neste modelo e tamanho</h2>
+        <div class="tbl"><table id="qtyTable"></table></div>
+        <p class="note" id="qtyNote"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Todos os modelos, mesma arte e quantidade</h2>
+        <div class="tbl"><table id="modelTable"></table></div>
+      </section>
+    </div>
+
+    <aside class="panel ticket" id="ticket">
+      <div class="tk-head" id="tkHead">Item atual</div>
+      <div class="big" id="unit" aria-live="polite"><span class="v">R$ 0,00</span> <small>por peça</small></div>
+      <div class="cap">Do que o preço por peça é feito</div>
+      <div class="bars" id="bars"></div>
+      <div id="tkLines"></div>
+      <div id="tkWarn"></div>
+      <button class="primary" id="add" type="button">Adicionar ao pedido</button>
+
+      <hr class="sep">
+      <div class="tk-sec" id="orderHead">Pedido</div>
+      <div id="orderList"></div>
+      <div class="disc">
+        <label class="f">Desconto
+          <select id="descTipo">
+            <option value="pct">Porcentagem (%)</option>
+            <option value="val">Reais (R$) no total</option>
+          </select>
+        </label>
+        <label class="f">Valor do desconto<input id="desc" type="number" inputmode="decimal" min="0" step="0.5"></label>
+      </div>
+      <div class="chips small" id="descChips"></div>
+      <div id="orderLines"></div>
+      <div id="orderWarn"></div>
+      <button class="secondary" id="copy" type="button">Copiar orçamento para o cliente</button>
+      <button class="linkbtn" id="clear" type="button" hidden>Limpar pedido</button>
+      <p class="note" id="copyMsg" style="min-height:1.2em"></p>
+    </aside>
+  </div>
+</div>
+
+<a class="dock" href="#ticket"><span><b id="dockUnit">—</b> <small>por peça</small></span><span class="dk">Pedido <b id="dockTotal">—</b></span></a>
+
+<script>
+(function () {
+  var KEY = "calculadora-dtf-v2";
+  // Medidas em cm, conforme as tabelas de tamanhos: h = altura, w = largura. São aproximadas (até 1,5 cm de diferença).
+  var BASE = [
+    { id: "trad", nome: "Blusa tradicional", custo: 17.5, sizes: [
+      { n: "P", h: 70, w: 49 }, { n: "M", h: 71, w: 51 }, { n: "G", h: 75, w: 55 }, { n: "GG", h: 77, w: 58 } ] },
+    { id: "baby", nome: "Baby look", custo: 14.5, sizes: [
+      { n: "P", h: 59, w: 44 }, { n: "M", h: 62, w: 45 }, { n: "G", h: 63, w: 48 }, { n: "GG", h: 64, w: 55 } ] },
+    { id: "crop", nome: "Cropped oversize", custo: 17.0, sizes: [
+      { n: "P", h: 45, w: 49 }, { n: "M", h: 47, w: 52 }, { n: "G", h: 49, w: 55 } ] },
+    { id: "inf", nome: "Blusa infantil", custo: 13.5, sizes: [
+      { n: "P", h: 42, w: 34 }, { n: "M", h: 45, w: 36 }, { n: "G", h: 50, w: 39 }, { n: "GG", h: 54, w: 41 } ] },
+    { id: "over", nome: "Blusa oversized", custo: 19.9, sizes: [
+      { n: "P", h: 72, w: 52 }, { n: "M", h: 75, w: 55 }, { n: "G", h: 77, w: 58 }, { n: "GG", h: 80, w: 61 } ] }
+  ];
+  var MODELS = BASE.slice();
+  var side = "front"; // lado da blusa mostrado na prévia (não é salvo)
+  function syncModels() { MODELS = BASE.concat(S.extra); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  // Produtos adicionados antes de existirem medidas usam as medidas da blusa tradicional (P ao GG).
+  var LEGACY_SIZES = [{ n: "P", h: 70, w: 49 }, { n: "M", h: 71, w: 51 }, { n: "G", h: 75, w: 55 }, { n: "GG", h: 77, w: 58 }];
+  function sizesOf(id) {
+    var m = MODELS.filter(function (x) { return x.id === id; })[0];
+    return m && m.sizes && m.sizes.length ? m.sizes : LEGACY_SIZES;
+  }
+  function pickSize(id, name) {
+    var list = sizesOf(id);
+    return list.filter(function (x) { return x.n === name; })[0] ||
+           list.filter(function (x) { return x.n === "M"; })[0] || list[Math.floor(list.length / 2)];
+  }
+  var SIZE_NAMES = ["P", "M", "G", "GG"];
+  var PRESETS = [
+    { n: "Pocket 8×8", w: 8, h: 8 },
+    { n: "Peito 12×12", w: 12, h: 12 },
+    { n: "20×25", w: 20, h: 25 },
+    { n: "A4 21×29,7", w: 21, h: 29.7 },
+    { n: "30×40", w: 30, h: 40 },
+    { n: "A3 29,7×42", w: 29.7, h: 42 }
+  ];
+  var DEFAULT = {
+    model: "trad", atual: { trad: 50, baby: 0, crop: 45, inf: 40, over: 60 }, garments: { trad: 17.5, baby: 14.5, crop: 17.0, inf: 13.5, over: 19.9 },
+    rollPrice: 45, rollW: 100, rollH: 58, bagPrice: 150, bagQty: 100,
+    perda: 10, minutos: 30, hora: 10, energia: 0.3, taxas: 0, fixo: 0,
+    tiers: [[1, 45], [5, 40], [10, 35], [25, 30], [50, 25]],
+    faixa: "total", items: [], extra: [], costs: [], descTipo: "pct", desc: 0,
+    size: "M", front: true, w: 20, h: 25, back: false, bw: 20, bh: 25, qty: 10, useBag: true, round: true
+  };
+  var S = JSON.parse(JSON.stringify(DEFAULT));
+  try {
+    var saved = localStorage.getItem(KEY);
+    if (saved) { var p = JSON.parse(saved); for (var k in p) if (k in S) S[k] = p[k]; }
+  } catch (e) {}
+  if (!Array.isArray(S.items)) S.items = [];
+  if (!Array.isArray(S.extra)) S.extra = [];
+  if (!Array.isArray(S.costs)) S.costs = [];
+  S.costs = S.costs.filter(function (c) { return c && typeof c.nome === "string" && isFinite(c.valor) && c.valor >= 0; }).map(function (c) {
+    return { id: String(c.id || Math.random().toString(36).slice(2)), nome: c.nome.slice(0, 40), valor: +c.valor, tipo: c.tipo === "item" ? "item" : "peca" };
+  });
+  S.extra = S.extra.filter(function (x) { return x && typeof x.id === "string" && typeof x.nome === "string"; });
+  S.extra.forEach(function (x) {
+    if (Array.isArray(x.sizes)) x.sizes = x.sizes.filter(function (z) { return z && typeof z.n === "string" && z.h > 0 && z.w > 0; });
+    else delete x.sizes;
+  });
+  S.extra.forEach(function (x) { if (typeof S.garments[x.id] !== "number") S.garments[x.id] = parseFloat(x.custo) || 0; });
+  syncModels();
+  if (!MODELS.some(function (x) { return x.id === S.model; })) S.model = "trad";
+  S.items = S.items.filter(function (it) { return MODELS.some(function (x) { return x.id === it.model; }); });
+
+  var $ = function (id) { return document.getElementById(id); };
+  var brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  var num = function (v, d) { var n = parseFloat(v); return isFinite(n) && n >= 0 ? n : (d || 0); };
+  var cm = function (v) { return String(Math.round(v * 10) / 10).replace(".", ","); };
+  var pct = function (v) { return (Math.round(v * 10) / 10).toString().replace(".", ",") + "%"; };
+  var modelName = function (id) { return MODELS.filter(function (x) { return x.id === id; })[0].nome; };
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  function marginFor(q) {
+    var t = S.tiers.slice().sort(function (a, b) { return a[0] - b[0]; });
+    var m = t.length ? t[0][1] : 0;
+    for (var i = 0; i < t.length; i++) if (q >= t[i][0]) m = t[i][1];
+    return m;
+  }
+
+  // it: configuração da arte (frente, costas, sacola). mq: quantidade usada para escolher a faixa de margem.
+  function calc(modelId, q, it, mq) {
+    it = it || S; mq = mq || q;
+    var artArea = (it.front ? it.w * it.h : 0) + (it.back ? it.bw * it.bh : 0);
+    var rollArea = Math.max(1, S.rollW * S.rollH);
+    var dtf = artArea * (S.rollPrice / rollArea) * (1 + S.perda / 100);
+    var blusa = S.garments[modelId] || 0;
+    var sacola = it.useBag ? S.bagPrice / Math.max(1, S.bagQty) : 0;
+    var fixo = (it.fixo || 0) / Math.max(1, q);
+    var maoObra = S.minutos / 60 * S.hora + S.energia;
+    var extras = S.costs.map(function (c) { return { nome: c.nome, tipo: c.tipo, v: c.tipo === "item" ? c.valor / Math.max(1, q) : c.valor }; });
+    var extra = extras.reduce(function (s, c) { return s + c.v; }, 0);
+    var custo = blusa + dtf + sacola + fixo + extra + maoObra;
+    var margem = marginFor(mq);
+    var corte = margem + S.taxas;
+    var raw = corte >= 99 ? NaN : custo / (1 - corte / 100);
+    var preco = raw;
+    if (S.round && isFinite(raw)) preco = Math.ceil(raw - 0.9 - 1e-9) + 0.9;
+    return { artArea: artArea, blusa: blusa, dtf: dtf, sacola: sacola, fixo: fixo, extras: extras, extra: extra, maoObra: maoObra,
+             custo: custo, margem: margem, preco: preco, raw: raw, corte: corte };
+  }
+
+  function draftItem() {
+    return { model: S.model, qty: Math.max(1, S.qty), front: S.front, w: S.w, h: S.h, back: S.back, bw: S.bw, bh: S.bh, useBag: S.useBag, fixo: S.fixo, size: S.size };
+  }
+  function artLabelOf(it) {
+    var a = [];
+    if (it.front) a.push("frente " + cm(it.w) + "×" + cm(it.h) + " cm");
+    if (it.back) a.push("costas " + cm(it.bw) + "×" + cm(it.bh) + " cm");
+    return a.length ? a.join(" + ") : "sem arte";
+  }
+  function itemsPieces() { return S.items.reduce(function (s, it) { return s + it.qty; }, 0); }
+
+  // Calcula um pedido inteiro (lista de itens) com desconto.
+  function orderCalc(list) {
+    var pieces = list.reduce(function (s, it) { return s + it.qty; }, 0);
+    var ok = true, sub = 0, custo = 0;
+    var rows = list.map(function (it) {
+      var mq = S.faixa === "total" ? pieces : it.qty;
+      var c = calc(it.model, it.qty, it, mq);
+      if (!isFinite(c.preco)) ok = false;
+      var s = c.preco * it.qty;
+      sub += s; custo += c.custo * it.qty;
+      return { it: it, c: c, sub: s };
+    });
+    var desc = S.descTipo === "pct" ? sub * Math.min(S.desc, 100) / 100 : S.desc;
+    desc = Math.max(0, Math.min(desc, sub));
+    var total = sub - desc;
+    var lucro = total * (1 - S.taxas / 100) - custo;
+    return { rows: rows, ok: ok, pieces: pieces, sub: sub, desc: desc, total: total, custo: custo, lucro: lucro,
+             margem: total > 0 ? lucro / total * 100 : 0 };
+  }
+
+  function fitCount(w, h) {
+    function g(a, b) { return Math.floor(S.rollW / a) * Math.floor(S.rollH / b); }
+    return Math.max(g(w, h), g(h, w));
+  }
+
+  // Lista de custos extras do bloco "Materiais adicionais". Reconstruída só ao adicionar ou remover.
+  function buildCosts() {
+    var box = $("costList");
+    box.innerHTML = "";
+    if (!S.costs.length) {
+      var p = document.createElement("p");
+      p.className = "note"; p.style.margin = "0 0 10px";
+      p.textContent = "Nenhum custo extra. Adicione o que passar a gastar em cada peça ou em cada pedido, como embalagem, etiqueta ou frete.";
+      box.appendChild(p);
+      return;
+    }
+    var head = document.createElement("div");
+    head.className = "costrow costhead";
+    head.innerHTML = "<span>Nome</span><span>Valor (R$)</span><span>Cobrança</span><span></span>";
+    box.appendChild(head);
+    S.costs.forEach(function (c) {
+      var row = document.createElement("div"); row.className = "costrow";
+      var nome = document.createElement("input");
+      nome.type = "text"; nome.maxLength = 40; nome.placeholder = "Ex.: Etiqueta"; nome.value = c.nome; nome.id = "cn_" + c.id;
+      nome.setAttribute("aria-label", "Nome do custo extra");
+      nome.addEventListener("input", function () { c.nome = nome.value; save(); render(); });
+      var val = document.createElement("input");
+      val.type = "number"; val.inputMode = "decimal"; val.min = "0"; val.step = "0.1"; val.value = c.valor; val.id = "cv_" + c.id;
+      val.setAttribute("aria-label", "Valor do custo extra (R$)");
+      val.addEventListener("input", function () { c.valor = num(val.value); save(); render(); });
+      var tipo = document.createElement("select");
+      tipo.id = "ct_" + c.id; tipo.setAttribute("aria-label", "Como o custo é cobrado");
+      tipo.innerHTML = '<option value="peca">Por peça</option><option value="item">Uma vez por item</option>';
+      tipo.value = c.tipo;
+      tipo.addEventListener("change", function () { c.tipo = tipo.value; save(); render(); });
+      var rm = document.createElement("button");
+      rm.type = "button"; rm.className = "x"; rm.textContent = "×"; rm.setAttribute("aria-label", "Remover custo extra");
+      rm.addEventListener("click", function () { S.costs.splice(S.costs.indexOf(c), 1); save(); buildCosts(); render(); });
+      row.appendChild(nome); row.appendChild(val); row.appendChild(tipo); row.appendChild(rm);
+      box.appendChild(row);
+    });
+  }
+
+  // Botões de tamanho do produto escolhido (P, M, G, GG...), acima da blusa.
+  function buildSizes() {
+    var box = $("sizes");
+    box.innerHTML = ""; box.dataset.model = S.model;
+    sizesOf(S.model).forEach(function (z) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "sz"; b.dataset.n = z.n; b.textContent = z.n;
+      if (z.note) b.title = z.n + ": " + z.note;
+      b.addEventListener("click", function () { S.size = z.n; save(); render(); });
+      box.appendChild(b);
+    });
+  }
+
+  // Reconstrói a lista de produtos e os campos de custo e preço de cada um.
+  function buildModels() {
+    var m = $("models"), g = $("garments"), at = $("atuais"), ex = $("np_list");
+    m.innerHTML = ""; g.innerHTML = ""; at.innerHTML = ""; ex.innerHTML = "";
+    MODELS.forEach(function (x) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "model"; b.dataset.id = x.id;
+      var t = document.createElement("b"); t.textContent = x.nome;
+      var s = document.createElement("small");
+      b.appendChild(t); b.appendChild(s);
+      b.addEventListener("click", function () { S.model = x.id; save(); render(); });
+      m.appendChild(b);
+      [["g_", "garments", g], ["a_", "atual", at]].forEach(function (cfg) {
+        var l = document.createElement("label");
+        l.className = "f"; l.textContent = x.nome + " (R$)";
+        var i = document.createElement("input");
+        i.type = "number"; i.inputMode = "decimal"; i.min = "0"; i.step = "0.5"; i.id = cfg[0] + x.id;
+        i.value = cfg[1] === "garments" ? S.garments[x.id] : (S.atual[x.id] || "");
+        i.addEventListener("input", function () { S[cfg[1]][x.id] = num(i.value); save(); render(); });
+        l.appendChild(i); cfg[2].appendChild(l);
+      });
+    });
+    S.extra.forEach(function (x) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = "Remover " + x.nome + " ×";
+      b.addEventListener("click", function () { removeProduct(x.id); });
+      ex.appendChild(b);
+    });
+  }
+
+  function removeProduct(id) {
+    S.extra = S.extra.filter(function (x) { return x.id !== id; });
+    delete S.garments[id]; delete S.atual[id];
+    S.items = S.items.filter(function (it) { return it.model !== id; });
+    if (S.model === id) S.model = "trad";
+    syncModels(); buildModels(); save(); render();
+    $("np_msg").textContent = "Produto removido.";
+  }
+
+  function buildStatic() {
+    buildModels();
+    buildCosts();
+    $("costAdd").addEventListener("click", function () {
+      S.costs.push({ id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), nome: "", valor: 0, tipo: "peca" });
+      save(); buildCosts(); render();
+      var names = $("costList").querySelectorAll('input[type="text"]');
+      if (names.length) names[names.length - 1].focus();
+    });
+    var p = $("presets");
+    PRESETS.forEach(function (x) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = x.n;
+      b.addEventListener("click", function () { S.w = x.w; S.h = x.h; $("w").value = x.w; $("h").value = x.h; save(); render(); });
+      p.appendChild(b);
+    });
+    var t = $("tiers");
+    t.innerHTML = '<div class="hd">A partir de (peças)</div><div class="hd">Margem (%)</div>';
+    S.tiers.forEach(function (row, idx) {
+      var a = document.createElement("input"); a.type = "number"; a.min = "1"; a.step = "1"; a.inputMode = "numeric"; a.id = "tq" + idx;
+      var b = document.createElement("input"); b.type = "number"; b.min = "0"; b.max = "90"; b.step = "1"; b.inputMode = "decimal"; b.id = "tm" + idx;
+      a.addEventListener("input", function () { S.tiers[idx][0] = Math.max(1, num(a.value, 1)); save(); render(); });
+      b.addEventListener("input", function () { S.tiers[idx][1] = Math.min(90, num(b.value)); save(); render(); });
+      t.appendChild(a); t.appendChild(b);
+    });
+    var dc = $("descChips");
+    [["Sem desconto", "pct", 0], ["5%", "pct", 5], ["10%", "pct", 10], ["15%", "pct", 15]].forEach(function (x) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = x[0];
+      b.addEventListener("click", function () { S.descTipo = x[1]; S.desc = x[2]; $("descTipo").value = x[1]; $("desc").value = x[2]; save(); render(); });
+      dc.appendChild(b);
+    });
+    $("orderList").addEventListener("click", function (e) {
+      var btn = e.target.closest ? e.target.closest("button[data-i]") : null;
+      if (!btn) return;
+      S.items.splice(parseInt(btn.dataset.i, 10), 1);
+      save(); render();
+    });
+  }
+
+  function fillInputs() {
+    var map = { w: "w", h: "h", bw: "bw", bh: "bh", qty: "qty", fixo: "fixo", rollPrice: "rollPrice", rollW: "rollW",
+                rollH: "rollH", bagPrice: "bagPrice", bagQty: "bagQty", perda: "perda", minutos: "minutos", hora: "hora", energia: "energia", taxas: "taxas", desc: "desc" };
+    Object.keys(map).forEach(function (k) {
+      var el = $(map[k]); el.value = S[k];
+      el.addEventListener("input", function () {
+        var v = num(el.value, 0);
+        if (k === "qty" || k === "bagQty") v = Math.max(1, Math.floor(v) || 1);
+        S[k] = v; save(); render();
+      });
+    });
+    ["front", "back", "useBag", "round"].forEach(function (k) {
+      var el = $(k); el.checked = !!S[k];
+      el.addEventListener("change", function () { S[k] = el.checked; save(); render(); });
+    });
+    ["faixa", "descTipo"].forEach(function (k) {
+      var el = $(k); el.value = S[k];
+      el.addEventListener("change", function () { S[k] = el.value; save(); render(); });
+    });
+    MODELS.forEach(function (x) { $("g_" + x.id).value = S.garments[x.id]; $("a_" + x.id).value = S.atual[x.id] || ""; });
+    S.tiers.forEach(function (r, i) { $("tq" + i).value = r[0]; $("tm" + i).value = r[1]; });
+  }
+
+
+  function quoteText(o) {
+    var L = ["Orçamento de camisetas personalizadas"];
+    o.rows.forEach(function (r, i) {
+      L.push((o.rows.length > 1 ? (i + 1) + ") " : "") + r.it.qty + (r.it.qty === 1 ? " peça" : " peças") + " · " + modelName(r.it.model) + (r.it.size ? " " + r.it.size : "") + " · " + artLabelOf(r.it) + "\n    " + brl.format(r.c.preco) + " cada = " + brl.format(r.sub));
+    });
+    if (o.desc > 0) {
+      L.push("Subtotal: " + brl.format(o.sub));
+      L.push("Desconto" + (S.descTipo === "pct" ? " (" + pct(Math.min(S.desc, 100)) + ")" : "") + ": -" + brl.format(o.desc));
+    }
+    L.push("Total: " + brl.format(o.total));
+    return L.join("\n");
+  }
+
+  function render() {
+    var q = Math.max(1, S.qty);
+    var extra = S.faixa === "total" ? itemsPieces() : 0;
+    var mdl = MODELS.filter(function (x) { return x.id === S.model; })[0];
+    var r = calc(S.model, q, S, q + extra);
+
+    document.querySelectorAll(".model").forEach(function (b) {
+      var id = b.dataset.id;
+      b.setAttribute("aria-pressed", id === S.model ? "true" : "false");
+      b.querySelector("small").textContent = brl.format(S.garments[id] || 0) + " de custo";
+    });
+    $("backRow").hidden = !S.back;
+    $("frontBlock").hidden = !S.front;
+
+    // pré-visualização em escala real (1 unidade = 1 cm), no tamanho escolhido, frente ou costas
+    if ($("sizes").dataset.model !== S.model) buildSizes();
+    var sz = pickSize(S.model, S.size); S.size = sz.n;
+    document.querySelectorAll("#sizes .sz").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.n === sz.n ? "true" : "false"); });
+    var isBack = side === "back";
+    var aw = isBack ? S.bw : S.w, ah = isBack ? S.bh : S.h, hasArt = isBack ? S.back : S.front;
+    var f2 = function (v) { return Math.round(v * 100) / 100; };
+    var SW = sz.w, SH = sz.h, half = SW / 2, sl = 0.26 * SW, nkW = 0.19 * SW, sy = 0.20 * SW, cuffY = 0.46 * SW, armY = 0.50 * SW;
+    var topF = Math.max(4, 0.10 * SH), topB = Math.max(4, 0.09 * SH), topOff = isBack ? topB : topF;
+    var neckD = "M" + f2(-nkW) + " 0 Q0 " + f2((isBack ? 0.03 : 0.14) * SW) + " " + f2(nkW) + " 0";
+    var bodyD = neckD + " L" + f2(half + sl) + " " + f2(sy) + " L" + f2(half + 0.78 * sl) + " " + f2(cuffY) + " L" + f2(half) + " " + f2(armY) +
+      " L" + f2(half) + " " + SH + " L" + f2(-half) + " " + SH + " L" + f2(-half) + " " + f2(armY) +
+      " L" + f2(-half - 0.78 * sl) + " " + f2(cuffY) + " L" + f2(-half - sl) + " " + f2(sy) + " Z";
+    $("shirtSvg").setAttribute("viewBox", f2(-(half + sl) - 3) + " -3 " + f2(2 * (half + sl) + 6) + " " + (SH + 6));
+    $("shirtPath").setAttribute("d", bodyD);
+    $("neckPath").setAttribute("d", neckD);
+    var pw = Math.min(aw, SW), ph = Math.min(ah, SH - topOff);
+    var over = aw > SW + 0.01 || ah > SH - topOff + 0.01;
+    var rect = $("artRect");
+    rect.setAttribute("width", f2(pw)); rect.setAttribute("height", f2(ph));
+    rect.setAttribute("x", f2(-pw / 2)); rect.setAttribute("y", f2(topOff));
+    rect.setAttribute("class", "art" + (over ? " over" : ""));
+    rect.setAttribute("visibility", hasArt ? "visible" : "hidden");
+    var tooBig = (S.front && (S.w > SW || S.h > SH - topF)) || (S.back && (S.bw > SW || S.bh > SH - topB));
+    var sideName = isBack ? "costas" : "frente";
+    $("sideLbl").textContent = isBack ? "Costas" : "Frente";
+    $("flip").setAttribute("aria-label", "Virar a blusa (mostrando " + (isBack ? "as costas" : "a frente") + ")");
+    $("prevCap").innerHTML = (hasArt ? "" : "Sem arte nas " + sideName + ".<br>") + "<b>" + esc(mdl.nome) + " " + esc(sz.n) + "</b> · " + cm(SH) + "×" + cm(SW) + " cm" +
+      (sz.note ? " (" + esc(sz.note) + ")" : "") + "<br>altura × largura · escala real · medidas aproximadas";
+    $("shirtSvg").setAttribute("aria-label", (hasArt ? "Arte das " + sideName + " no tamanho real" : "Blusa vista pelas " + sideName + ", sem arte") + ", sobre a blusa " + sz.n + " de " + cm(SH) + " por " + cm(SW) + " centímetros");
+
+    var n1 = S.front ? fitCount(S.w, S.h) : 1;
+    var n2 = S.back ? fitCount(S.bw, S.bh) : 1;
+    var fit;
+    if (!S.front && !S.back) fit = "Sem arte selecionada: o preço considera só a blusa, a sacola e o seu tempo.";
+    else {
+      var fs = [];
+      if (S.front) fs.push(n1 > 0 ? "na frente cabem <b>" + n1 + "</b> artes por rolo" : "a arte da frente é maior que o rolo");
+      if (S.back) fs.push(n2 > 0 ? "nas costas cabem <b>" + n2 + "</b> artes por rolo" : "a arte das costas é maior que o rolo");
+      fit = fs.join("; ").replace(/^./, function (c) { return c.toUpperCase(); }) + " (rolo de " + S.rollW + "×" + S.rollH + " cm). Área de DTF por peça: <b>" + cm(r.artArea) + " cm²</b>.";
+    }
+    $("fit").innerHTML = fit;
+
+    // ---- item atual
+    var ok = isFinite(r.preco);
+    $("unit").innerHTML = '<span class="v">' + (ok ? brl.format(r.preco) : "—") + '</span> <small>por peça</small>';
+    $("tkHead").textContent = q + (q === 1 ? " peça" : " peças") + " · " + mdl.nome + " " + sz.n + " · " + artLabelOf(S);
+
+    var taxaPeca = ok ? r.preco * S.taxas / 100 : 0;
+    var lucroPeca = ok ? Math.max(0, r.preco - taxaPeca - r.custo) : 0;
+    var lines = "";
+    function kv(a, b, c, sw) { lines += '<div class="kv ' + (c || "") + '"><span>' + (sw ? '<i class="sw ' + sw + '"></i>' : "") + a + "</span><span>" + b + "</span></div>"; }
+    kv("Blusa lisa", brl.format(r.blusa), "", "s1");
+    kv("DTF (" + cm(r.artArea) + " cm², " + S.perda + "% de perda)", brl.format(r.dtf), "", "s2");
+    if (S.useBag) kv("Sacola", brl.format(r.sacola), "", "s3");
+    if (S.fixo > 0) kv("Custo fixo ÷ " + q, brl.format(r.fixo), "", "s4");
+    r.extras.forEach(function (c) { if (c.v > 0) kv(esc(c.nome || "Custo extra") + (c.tipo === "item" ? " (÷ " + q + ")" : ""), brl.format(c.v), "", "s4"); });
+    if (r.maoObra > 0) kv("Seu tempo (" + S.minutos + " min), energia e desgaste", brl.format(r.maoObra), "", "s5");
+    kv("Custo por peça", brl.format(r.custo), "sub");
+    if (S.taxas > 0) kv("Taxas (" + pct(S.taxas) + ")", ok ? brl.format(taxaPeca) : "—", "", "s6");
+    kv("Lucro por peça (faixa de " + r.margem + "%)", ok ? brl.format(lucroPeca) : "—", "gain", "sh");
+    kv("Total deste item (" + q + (q === 1 ? " peça" : " peças") + ")", ok ? brl.format(r.preco * q) : "—", "total");
+    kv("Lucro deste item", ok ? brl.format(lucroPeca * q) : "—", "sub");
+    var ap = S.atual[S.model] || 0, mr = 0;
+    if (ap > 0 && ok) {
+      mr = (ap * (1 - S.taxas / 100) - r.custo) / ap * 100;
+      var dif = r.preco - ap, below = mr < r.margem - 0.05;
+      kv("Seu preço atual", brl.format(ap), "top");
+      kv("Margem no seu preço atual", pct(mr), below ? "neg" : "");
+      kv(dif > 0.005 ? "Abaixo do sugerido em" : "Acima do sugerido em", brl.format(Math.abs(dif)), below ? "neg" : "");
+    }
+    $("tkLines").innerHTML = lines;
+
+    var segs = [[r.blusa, "s1"], [r.dtf, "s2"], [r.sacola, "s3"], [r.fixo, "s4"], [r.extra, "s4"], [r.maoObra, "s5"], [taxaPeca, "s6"], [lucroPeca, "sh"]];
+    var base = ok ? r.preco : (r.custo || 1), bars = "";
+    segs.forEach(function (sg) { if (sg[0] > 0.004) bars += '<i class="' + sg[1] + '" style="width:' + (sg[0] / base * 100).toFixed(2) + '%"></i>'; });
+    $("bars").innerHTML = bars;
+
+    var warn = "";
+    if (!ok) warn = "Margem e taxas somam 100% ou mais. Reduza um dos dois.";
+    else if (n1 === 0 || n2 === 0) warn = "A arte não cabe no rolo. Confira a largura, a altura e o tamanho do rolo.";
+    else if (tooBig) warn = "A arte passa da área da blusa " + sz.n + " (" + cm(SH) + "×" + cm(SW) + " cm). Confira as medidas ou escolha um tamanho maior.";
+    $("tkWarn").innerHTML = warn ? '<p class="warn">' + warn + "</p>" : "";
+    $("add").disabled = !ok;
+
+    // ---- pedido
+    var hasItems = S.items.length > 0;
+    var list = hasItems ? S.items : [draftItem()];
+    var o = orderCalc(list);
+    $("orderHead").textContent = hasItems
+      ? "Pedido · " + S.items.length + (S.items.length === 1 ? " item" : " itens") + " · " + o.pieces + (o.pieces === 1 ? " peça" : " peças")
+      : "Pedido";
+    if (hasItems) {
+      $("orderList").innerHTML = o.rows.map(function (rw, i) {
+        return '<div class="oi"><div class="t"><b>' + rw.it.qty + "× " + esc(modelName(rw.it.model)) + (rw.it.size ? " " + esc(rw.it.size) : "") + "</b><span>" + artLabelOf(rw.it) + "</span></div>" +
+          '<div class="p">' + (isFinite(rw.sub) ? brl.format(rw.sub) : "—") + "<small>" + (isFinite(rw.c.preco) ? brl.format(rw.c.preco) : "—") + " cada</small></div>" +
+          '<button class="x" type="button" data-i="' + i + '" aria-label="Remover item ' + (i + 1) + '">×</button></div>';
+      }).join("");
+    } else {
+      $("orderList").innerHTML = '<p class="order-empty">Nenhum item adicionado. O resumo abaixo usa o item atual. Para somar outra personalização, configure a blusa e use Adicionar ao pedido.</p>';
+    }
+    var ol = "";
+    function ok2(a, b, c) { ol += '<div class="kv ' + (c || "") + '"><span>' + a + "</span><span>" + b + "</span></div>"; }
+    if (o.ok) {
+      ok2("Subtotal", brl.format(o.sub));
+      if (o.desc > 0) ok2("Desconto" + (S.descTipo === "pct" ? " (" + pct(Math.min(S.desc, 100)) + ")" : ""), "-" + brl.format(o.desc));
+      ok2("Total do pedido", brl.format(o.total), "total");
+      ok2("Lucro do pedido", brl.format(o.lucro), o.lucro < 0 ? "loss" : "profit");
+      ok2("Margem final", pct(o.margem));
+    }
+    $("orderLines").innerHTML = ol;
+    var ow = "";
+    if (o.ok && o.lucro < 0) ow = '<p class="warn bad">Com esse desconto você vende abaixo do custo. Reduza o desconto.</p>';
+    else if (o.ok && o.desc > 0 && o.margem < 15) ow = '<p class="warn">Com o desconto, a margem do pedido caiu para ' + pct(o.margem) + ". Confira se compensa.</p>";
+    $("orderWarn").innerHTML = ow;
+    $("clear").hidden = !hasItems;
+    window.__quote = o.ok ? quoteText(o) : "";
+
+    var fText;
+    if (ap > 0 && ok) fText = "No preço atual de " + brl.format(ap) + ", este item deixa " + pct(mr) + " de margem. O sugerido é " + brl.format(r.preco) + " por peça.";
+    else fText = ok ? "Preço sugerido para " + q + (q === 1 ? " peça" : " peças") + ", com margem de " + r.margem + "% nesta faixa." : "Ajuste a margem para calcular o preço.";
+    $("finding").textContent = fText;
+    $("barSum").textContent = hasItems ? o.pieces + (o.pieces === 1 ? " peça" : " peças") + " no pedido · " + (o.ok ? brl.format(o.total) : "—") : "Nenhum item no pedido";
+    $("dockUnit").textContent = ok ? brl.format(r.preco) : "—";
+    $("dockTotal").textContent = o.ok ? brl.format(o.total) : "—";
+    var tsort = S.tiers.slice().sort(function (a, b) { return a[0] - b[0]; });
+    $("sumMargem").textContent = tsort.length ? "De " + tsort[0][1] + "% a " + tsort[tsort.length - 1][1] + "% · " + (S.faixa === "total" ? "conta o pedido todo" : "conta cada item") : "";
+    $("sumCustos").textContent = "Perda " + S.perda + "% · " + S.minutos + " min a " + brl.format(S.hora) + "/h · taxas " + pct(S.taxas) + (S.costs.length ? " · " + S.costs.length + (S.costs.length === 1 ? " custo extra" : " custos extras") : "");
+
+    // tabela por quantidade (considera as peças já no pedido quando a faixa conta o total)
+    var qs = [1, 5, 10, 25, 50, 100];
+    if (qs.indexOf(q) === -1) { qs.push(q); qs.sort(function (a, b) { return a - b; }); }
+    var h = "<tr><th>Peças</th><th>Margem</th><th>Custo/peça</th><th>Preço/peça</th><th>Total</th></tr>";
+    qs.forEach(function (x) {
+      var c = calc(S.model, x, S, x + extra);
+      h += '<tr class="' + (x === q ? "cur" : "") + '"><td>' + x + "</td><td>" + c.margem + "%</td><td>" + brl.format(c.custo) + "</td><td>" + (isFinite(c.preco) ? brl.format(c.preco) : "—") + "</td><td>" + (isFinite(c.preco) ? brl.format(c.preco * x) : "—") + "</td></tr>";
+    });
+    $("qtyTable").innerHTML = h;
+    $("qtyNote").textContent = extra > 0
+      ? "A linha marcada é a quantidade que você escolheu. As " + extra + " peças já no pedido contam para a faixa de margem."
+      : "A linha marcada é a quantidade que você escolheu.";
+
+    // tabela por modelo
+    var mt = "<tr><th>Modelo</th><th>Custo/peça</th><th>Seu preço</th><th>Margem real</th><th>Sugerido</th><th>Total sugerido</th></tr>";
+    MODELS.forEach(function (x) {
+      var c = calc(x.id, q, S, q + extra);
+      var a = S.atual[x.id] || 0;
+      var mrg = a > 0 ? pct((a * (1 - S.taxas / 100) - c.custo) / a * 100) : "—";
+      mt += '<tr class="' + (x.id === S.model ? "cur" : "") + '"><td>' + esc(x.nome) + "</td><td>" + brl.format(c.custo) + "</td><td>" + (a > 0 ? brl.format(a) : "—") + "</td><td>" + mrg + "</td><td>" + (isFinite(c.preco) ? brl.format(c.preco) : "—") + "</td><td>" + (isFinite(c.preco) ? brl.format(c.preco * q) : "—") + "</td></tr>";
+    });
+    $("modelTable").innerHTML = mt;
+  }
+
+  $("add").addEventListener("click", function () {
+    var msg = $("copyMsg");
+    var it = draftItem();
+    var c = calc(it.model, it.qty, it, it.qty);
+    if (!isFinite(c.preco)) return;
+    S.items.push(it); save(); render();
+    msg.textContent = "Item adicionado. Configure a próxima personalização.";
+  });
+  $("clear").addEventListener("click", function () { S.items = []; save(); render(); $("copyMsg").textContent = "Pedido limpo."; });
+
+  $("copy").addEventListener("click", function () {
+    var msg = $("copyMsg"), t = window.__quote;
+    if (!t) { msg.textContent = "Ajuste a margem antes de copiar."; return; }
+    function done() { msg.textContent = "Orçamento copiado."; }
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy") ? done() : (msg.textContent = "Selecione e copie: " + t.replace(/\n/g, " | ")); }
+      catch (e) { msg.textContent = "Não foi possível copiar. Selecione o valor na ficha."; }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback);
+    else fallback();
+  });
+
+  $("flip").addEventListener("click", function () {
+    var svg = $("shirtSvg");
+    var flipNow = function () { side = side === "front" ? "back" : "front"; render(); };
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { flipNow(); return; }
+    svg.classList.remove("turn"); void svg.getBoundingClientRect(); svg.classList.add("turn");
+    setTimeout(flipNow, 130);
+  });
+
+  $("np_add").addEventListener("click", function () {
+    var msg = $("np_msg");
+    var nome = $("np_nome").value.trim().slice(0, 40);
+    var custo = parseFloat($("np_custo").value);
+    var preco = parseFloat($("np_preco").value);
+    if (!nome) { msg.textContent = "Digite o nome do produto."; return; }
+    if (!isFinite(custo) || custo < 0) { msg.textContent = "Digite quanto você paga pelo produto sem estampa."; return; }
+    var sizes = [];
+    for (var si = 0; si < SIZE_NAMES.length; si++) {
+      var zn = SIZE_NAMES[si], zh = parseFloat($("np_" + zn + "_h").value), zw = parseFloat($("np_" + zn + "_w").value);
+      if (!(zh > 0) || !(zw > 0)) { msg.textContent = "Preencha a altura e a largura de P, M, G e GG."; return; }
+      sizes.push({ n: zn, h: zh, w: zw });
+    }
+    var id = "x" + Date.now().toString(36);
+    S.extra.push({ id: id, nome: nome, custo: custo, sizes: sizes });
+    S.garments[id] = custo;
+    S.atual[id] = isFinite(preco) && preco > 0 ? preco : 0;
+    S.model = id;
+    syncModels(); buildModels(); save(); render();
+    $("np_nome").value = ""; $("np_custo").value = ""; $("np_preco").value = "";
+    SIZE_NAMES.forEach(function (zn) { $("np_" + zn + "_h").value = ""; $("np_" + zn + "_w").value = ""; });
+    msg.textContent = nome + " adicionado e selecionado.";
+  });
+
+  buildStatic(); fillInputs(); render();
+})();
+</script>
+
+</body></html>
