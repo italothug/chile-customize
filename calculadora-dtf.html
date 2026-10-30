@@ -5,7 +5,7 @@
 <style>
 /* Layout: barra de topo com o nome e o resumo do pedido; título e achado; duas colunas (formulário à esquerda, ficha do pedido à direita).
    Um só espaçamento (12px), cartões de 8px com borda de 1px e sem sombra, uma só família (Geist), cor só nos dados:
-   no preço por peça, o azul marca o lucro; tudo o mais é tinta e cinzas. */
+   rosa nas ações e seleções, verde no lucro e âmbar nos alertas, como no estoque. */
 :root {
   --ground: #f4f3f1;
   --surface: #ffffff;
@@ -30,27 +30,6 @@
   --control-h: 36px;
   --font: "Geist", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --ground: #0f0f10; --surface: #171718; --raised: #232325; --border: #2a2a2d; --rule: #212123; --control: #3d3d41;
-    --text: #f5f5f5; --muted: #a3a3a8; --primary: #f5f5f5; --primary-ink: #0a0a0a;
-    --hue: #6ea3ff; --sel: #1f3d73; --negative: #ff7a85;
-    --s1: #f2f2f2; --s2: #bdbdbd; --s3: #8e8e8e; --s4: #666669; --s5: #4a4a4e; --s6: #36363a;
-    --warn-bg: #2a2210; --warn-bd: #5c4a16; --warn-ink: #f0b255;
-    --neg-bg: #2c1a20; --neg-bd: #5a2a32; --neg-ink: #ff9aa5;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --ground: #0f0f10; --surface: #171718; --raised: #232325; --border: #2a2a2d; --rule: #212123; --control: #3d3d41;
-  --text: #f5f5f5; --muted: #a3a3a8; --primary: #f5f5f5; --primary-ink: #0a0a0a;
-  --hue: #6ea3ff; --sel: #1f3d73; --negative: #ff7a85;
-  --s1: #f2f2f2; --s2: #bdbdbd; --s3: #8e8e8e; --s4: #666669; --s5: #4a4a4e; --s6: #36363a;
-  --warn-bg: #2a2210; --warn-bd: #5c4a16; --warn-ink: #f0b255;
-  --neg-bg: #2c1a20; --neg-bd: #5a2a32; --neg-ink: #ff9aa5;
-  color-scheme: dark;
-}
-
 * { box-sizing: border-box; scrollbar-width: thin; scrollbar-color: var(--control) transparent; }
 ::selection { background: var(--sel); color: var(--text); }
 body {
@@ -251,12 +230,14 @@ tr.cur td:first-child { padding-left: 10px; }
 :root,:root[data-theme="dark"],:root[data-theme="light"]{
   color-scheme:dark;
   --ground:#0d0f14;--surface:#1c1f28;--raised:#242835;
-  --border:#2d313f;--rule:#252836;--control:#414657;
+  --border:#2d313f;--rule:#252836;--control:#2d313f;
   --text:#f4f1ea;--muted:#a7abb8;
   --primary:#b91e5d;--primary-ink:#fff;
-  --hue:#ef8ab2;--sel:#3a1f2c;--negative:#ff7a8f;
+  --pink:#ef3f83;--pink-dim:#3a1f2c;--pink-text:#ff9fc5;
+  --teal:#33c58e;--teal-dim:#123326;--amber:#ffb648;
+  --hue:var(--pink);--sel:var(--pink-dim);--negative:#ff7a8f;
   --s1:#eeeae2;--s2:#b8bbc6;--s3:#9298aa;--s4:#737b90;--s5:#555e73;--s6:#3c455a;
-  --warn-bg:#3a2a10;--warn-bd:#ffb648;--warn-ink:#ffd087;
+  --warn-bg:#3a2a10;--warn-bd:var(--amber);--warn-ink:var(--amber);
   --neg-bg:#3a1a22;--neg-bd:#ff7a8f;--neg-ink:#ffb6c2;
   --radius-card:12px;--radius-control:8px;--control-h:44px;
 }
@@ -273,6 +254,16 @@ button.linkbtn{min-height:44px;}
 .embedded .ticket{position:static;max-height:none;overflow:visible;}
 body.embedded{padding:0 0 16px;}
 @media(max-width:380px){.panel{padding:16px;}.tiers,.disc{grid-template-columns:minmax(0,1fr) minmax(0,1fr);}.costrow{gap:6px;}}
+
+input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(--raised);}
+.model:hover,.sz:hover,.chip:hover{border-color:var(--pink);}
+.model[aria-pressed="true"],.sz[aria-pressed="true"]{background:var(--pink-dim);border-color:var(--pink);outline-color:var(--pink);color:var(--pink-text);}
+.model[aria-pressed="true"] small{color:var(--pink-text);}
+.check input{accent-color:var(--pink);}
+:focus-visible{outline-color:#ff8db8;}
+.sh{background:var(--teal);}
+.kv.gain>span:last-child,.kv.profit>span:last-child{color:var(--teal);}
+.kv.loss>span:last-child,.kv.neg>span:last-child{color:var(--negative);}
 </style>
 
 <header class="bar">
