@@ -915,6 +915,24 @@ html, body{margin:0;padding:0;background:#0d0f14;}
   }
 
   function saldoKey(codigo, tamanho){ return codigo + '|' + tamanho; }
+  function sendCalculatorStock(){
+    var frame=document.getElementById('dtf-calculator');
+    if(!frame||!frame.contentWindow||!hasLoadedData)return;
+    frame.contentWindow.postMessage({source:'chile-stock',type:'stock',products:products.map(function(p){return {codigo:p.codigo,categoria:p.categoria,modelo:p.modelo,cor:p.cor,tamanhos:p.tamanhos,ativo:p.ativo};}),balances:saldoMap},location.origin);
+  }
+  window.addEventListener('message',async function(e){
+    var frame=document.getElementById('dtf-calculator');
+    if(e.origin!==location.origin||!frame||e.source!==frame.contentWindow||!e.data||e.data.source!=='chile-calculator')return;
+    if(e.data.type==='stock-request'){sendCalculatorStock();return;}
+    if(e.data.type!=='close-order')return;
+    var reply=function(ok,error){frame.contentWindow.postMessage({source:'chile-stock',type:'close-result',ok:ok,error:error||''},location.origin);};
+    if(!hasLoadedData||root.style.display==='none'){reply(false,'Entre no estoque e aguarde a sincronização.');return;}
+    try{
+      var result=await db.rpc('fechar_pedido_calculadora',{p_pedido_id:e.data.id,p_cliente:e.data.customer,p_pagamento:e.data.payment,p_itens:e.data.items});
+      if(result.error)throw result.error;
+      await loadData();sendCalculatorStock();reply(true);toast('Pedido fechado e vendas registradas.');
+    }catch(err){console.error(err);reply(false,err.message||'Não foi possível registrar a venda.');}
+  });
 
   var hasLoadedData=false;
   async function loadData(){
@@ -951,7 +969,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       if (auditResult.error) throw auditResult.error;
       auditMovements = auditResult.data || [];
       root.classList.remove("load-unavailable");hasLoadedData=true;document.getElementById("load-error").hidden=true;
-      renderAll();
+      renderAll();sendCalculatorStock();
     } catch(e){
       console.error(e);
       products=previous.products;movements=previous.movements;auditMovements=previous.audit;saldoMap=previous.saldo;totalVendas=previous.vendas;totalLucro=previous.lucro;
@@ -1634,6 +1652,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     renderProdTable();
     renderAuditTable();
     renderSales();
+    sendCalculatorStock();
   }
 
   root.querySelectorAll('.eq-tab').forEach(function(tab){
