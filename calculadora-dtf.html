@@ -335,7 +335,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
           </div>
           <div class="preview">
             <div class="grp" id="sizesLbl">Tamanho</div>
-            <div class="sizes" id="sizes" role="group" aria-labelledby="sizesLbl"></div>
+            <div class="sizes" id="sizes" role="group" aria-labelledby="sizesLbl"></div><label class="f" style="margin:12px 0">Cor da blusa<select id="colorSelect"></select></label>
             <div class="prevbar">
               <span class="side" id="sideLbl">Frente</span>
               <button class="flip" id="flip" type="button" aria-label="Virar a blusa (mostrando a frente)" title="Frente e verso">
@@ -448,6 +448,12 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
       <div id="orderLines"></div>
       <div id="orderWarn"></div>
       <button class="secondary" id="copy" type="button">Copiar orçamento para o cliente</button>
+      <hr class="sep"><div class="tk-sec">Fechar pedido</div>
+      <label class="f">Nome da pessoa<input id="closeCustomer" type="text" maxlength="120" placeholder="Nome do cliente"></label>
+      <div id="closePrices" class="row" style="margin-top:12px"></div>
+      <label class="f" style="margin-top:12px">Pagamento recebido<select id="closePayment"><option value="0">0%</option><option value="50">50%</option><option value="100">100%</option></select></label>
+      <p class="note" id="closeHint"></p>
+      <button class="primary" id="closeOrder" type="button">Fechar pedido e registrar venda</button><p class="note" id="closeMsg" role="status"></p>
       <button class="linkbtn" id="clear" type="button" hidden>Limpar pedido</button>
       <p class="note" id="copyMsg" style="min-height:1.2em"></p>
     </aside>
@@ -459,6 +465,18 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
 <script>
 (function () {
   var KEY = "calculadora-dtf-v2";
+  var stockProducts=[],stockBalances={},stockReady=false,closing=false;
+  var aliases={trad:"Normal",baby:"Baby look",crop:"Cropped",inf:"Infantil",over:"Oversize"};
+  function normalized(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();}
+  function choices(id){var model=aliases[id]||modelName(id);return stockProducts.filter(function(p){return p.ativo!==false&&p.categoria==="Blusa"&&normalized(p.modelo)===normalized(model);});}
+  function product(it){return choices(it.model).filter(function(p){return p.codigo===it.codigo;})[0];}
+  function color(it){var p=product(it);return p?p.cor:"";}
+  function requestStock(){if(parent!==window)parent.postMessage({source:"chile-calculator",type:"stock-request"},location.origin);}
+  window.addEventListener("message",function(e){
+    if(e.origin!==location.origin||e.source!==parent||!e.data||e.data.source!=="chile-stock")return;
+    if(e.data.type==="stock"){stockProducts=e.data.products||[];stockBalances=e.data.balances||{};stockReady=true;render();}
+    if(e.data.type==="close-result"){closing=false;$("closeOrder").disabled=false;$("closeMsg").textContent=e.data.ok?"Pedido fechado e venda registrada no estoque.":e.data.error||"Falha ao fechar pedido.";if(e.data.ok){S.items=[];save();render();requestStock();}}
+  });
   // Medidas em cm, conforme as tabelas de tamanhos: h = altura, w = largura. São aproximadas (até 1,5 cm de diferença).
   var BASE = [
     { id: "trad", nome: "Blusa tradicional", custo: 17.5, sizes: [
@@ -502,7 +520,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     perda: 10, minutos: 30, hora: 10, energia: 0.3, taxas: 0, fixo: 0,
     tiers: [[1, 45], [5, 40], [10, 35], [25, 30], [50, 25]],
     faixa: "total", items: [], extra: [], costs: [], descTipo: "pct", desc: 0,
-    size: "M", front: true, w: 20, h: 25, back: false, bw: 20, bh: 25, qty: 10, useBag: true, round: true
+    size: "M", codigo: "", front: true, w: 20, h: 25, back: false, bw: 20, bh: 25, qty: 10, useBag: true, round: true
   };
   var S = JSON.parse(JSON.stringify(DEFAULT));
   try {
@@ -564,7 +582,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   }
 
   function draftItem() {
-    return { model: S.model, qty: Math.max(1, S.qty), front: S.front, w: S.w, h: S.h, back: S.back, bw: S.bw, bh: S.bh, useBag: S.useBag, fixo: S.fixo, size: S.size };
+    return { model: S.model, codigo: S.codigo, qty: Math.max(1, S.qty), front: S.front, w: S.w, h: S.h, back: S.back, bw: S.bw, bh: S.bh, useBag: S.useBag, fixo: S.fixo, size: S.size };
   }
   function artLabelOf(it) {
     var a = [];
@@ -756,7 +774,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   function quoteText(o) {
     var L = ["Orçamento de camisetas personalizadas"];
     o.rows.forEach(function (r, i) {
-      L.push((o.rows.length > 1 ? (i + 1) + ") " : "") + r.it.qty + (r.it.qty === 1 ? " peça" : " peças") + " · " + modelName(r.it.model) + (r.it.size ? " " + r.it.size : "") + " · " + artLabelOf(r.it) + "\n    " + brl.format(r.c.preco) + " cada = " + brl.format(r.sub));
+      L.push((o.rows.length > 1 ? (i + 1) + ") " : "") + r.it.qty + (r.it.qty === 1 ? " peça" : " peças") + " · " + modelName(r.it.model) + (r.it.size ? " " + r.it.size : "") + (color(r.it) ? " · " + color(r.it) : "") + " · " + artLabelOf(r.it) + "\n    " + brl.format(r.c.preco) + " cada = " + brl.format(r.sub));
     });
     if (o.desc > 0) {
       L.push("Subtotal: " + brl.format(o.sub));
@@ -782,6 +800,15 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
 
     // pré-visualização em escala real (1 unidade = 1 cm), no tamanho escolhido, frente ou costas
     if ($("sizes").dataset.model !== S.model) buildSizes();
+    var opts=choices(S.model),select=$("colorSelect");
+    if(!opts.some(function(p){return p.codigo===S.codigo;}))S.codigo=opts[0]?opts[0].codigo:"";
+    select.innerHTML=opts.length?opts.map(function(p){return '<option value="'+esc(p.codigo)+'">'+esc(p.cor)+'</option>';}).join(""):'<option value="">Sem cor cadastrada</option>';
+    select.value=S.codigo;
+    document.querySelectorAll("#sizes .sz").forEach(function(b){
+      var n=S.codigo?stockBalances[S.codigo+"|"+b.dataset.n]:null;
+      b.textContent=b.dataset.n+(stockReady?" · "+(n==null?"—":n):"");
+      b.title=stockReady?(n==null?"Sem saldo cadastrado":n+" em estoque"):"Aguardando estoque";
+    });
     var sz = pickSize(S.model, S.size); S.size = sz.n;
     document.querySelectorAll("#sizes .sz").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.n === sz.n ? "true" : "false"); });
     var isBack = side === "back";
@@ -874,7 +901,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
       : "Pedido";
     if (hasItems) {
       $("orderList").innerHTML = o.rows.map(function (rw, i) {
-        return '<div class="oi"><div class="t"><b>' + rw.it.qty + "× " + esc(modelName(rw.it.model)) + (rw.it.size ? " " + esc(rw.it.size) : "") + "</b><span>" + artLabelOf(rw.it) + "</span></div>" +
+        return '<div class="oi"><div class="t"><b>' + rw.it.qty + "× " + esc(modelName(rw.it.model)) + (rw.it.size ? " " + esc(rw.it.size) : "") + (color(rw.it) ? " · " + esc(color(rw.it)) : "") + "</b><span>" + artLabelOf(rw.it) + "</span></div>" +
           '<div class="p">' + (isFinite(rw.sub) ? brl.format(rw.sub) : "—") + "<small>" + (isFinite(rw.c.preco) ? brl.format(rw.c.preco) : "—") + " cada</small></div>" +
           '<button class="x" type="button" data-i="' + i + '" aria-label="Remover item ' + (i + 1) + '">×</button></div>';
       }).join("");
@@ -897,6 +924,12 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     $("orderWarn").innerHTML = ow;
     $("clear").hidden = !hasItems;
     window.__quote = o.ok ? quoteText(o) : "";
+    $("closeOrder").disabled=!hasItems||!o.ok||!stockReady||closing;
+    $("closeHint").textContent=!stockReady?"Abra a calculadora pelo estoque para fechar pedidos.":!hasItems?"Adicione os itens ao pedido.":"O estoque será conferido ao fechar.";
+    $("closePrices").innerHTML=hasItems&&o.ok?o.rows.map(function(r,i){
+      var v=o.sub>0?Math.round(r.c.preco*o.total/o.sub*100)/100:0;
+      return '<label class="f">'+esc(modelName(r.it.model))+' '+esc(r.it.size)+(color(r.it)?' · '+esc(color(r.it)):'')+' · '+r.it.qty+' peça(s)<input class="close-price" type="number" min="0" step="0.01" value="'+v.toFixed(2)+'" aria-label="Valor unitário do item '+(i+1)+'"></label>';
+    }).join(""):"";
 
     var fText;
     if (ap > 0 && ok) fText = "No preço atual de " + brl.format(ap) + ", este item deixa " + pct(mr) + " de margem. O sugerido é " + brl.format(r.preco) + " por peça.";
@@ -933,6 +966,21 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     $("modelTable").innerHTML = mt;
   }
 
+  $("colorSelect").addEventListener("change",function(){S.codigo=this.value;save();render();});
+  $("closeOrder").addEventListener("click",function(){
+    if(closing||!stockReady)return;
+    var customer=$("closeCustomer").value.trim(),prices=document.querySelectorAll(".close-price"),rows=[];
+    if(!customer){$("closeMsg").textContent="Informe o nome da pessoa.";return;}
+    if(!S.items.length){$("closeMsg").textContent="Adicione os itens ao pedido.";return;}
+    for(var i=0;i<S.items.length;i++){
+      var it=S.items[i],p=product(it),v=Number(prices[i]&&prices[i].value);
+      if(!p||!p.tamanhos.includes(it.size)){$("closeMsg").textContent="Escolha cor e tamanho cadastrados no estoque para cada item.";return;}
+      if(!Number.isFinite(v)||v<0||Math.abs(v*100-Math.round(v*100))>0.00001){$("closeMsg").textContent="Confira o valor unitário (até 2 casas decimais).";return;}
+      rows.push({codigo:p.codigo,tamanho:it.size,qtd:it.qty,valor:v});
+    }
+    closing=true;this.disabled=true;$("closeMsg").textContent="Registrando pedido...";
+    parent.postMessage({source:"chile-calculator",type:"close-order",id:crypto.randomUUID(),customer:customer,payment:Number($("closePayment").value),items:rows},location.origin);
+  });
   $("add").addEventListener("click", function () {
     var msg = $("copyMsg");
     var it = draftItem();
@@ -991,7 +1039,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     msg.textContent = nome + " adicionado e selecionado.";
   });
 
-  buildStatic(); fillInputs(); render();
+  buildStatic(); fillInputs(); render(); requestStock();
 })();
 </script>
 
