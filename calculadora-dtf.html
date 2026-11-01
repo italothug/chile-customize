@@ -926,10 +926,14 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     window.__quote = o.ok ? quoteText(o) : "";
     $("closeOrder").disabled=!hasItems||!o.ok||!stockReady||closing;
     $("closeHint").textContent=!stockReady?"Abra a calculadora pelo estoque para fechar pedidos.":!hasItems?"Adicione os itens ao pedido.":"O estoque será conferido ao fechar.";
-    $("closePrices").innerHTML=hasItems&&o.ok?o.rows.map(function(r,i){
+    var pricesBox=$("closePrices"),orderKey=JSON.stringify(S.items);
+    var oldPrices=pricesBox.dataset.orderKey===orderKey?Array.from(pricesBox.querySelectorAll(".close-price"),function(input){return input.value;}):[];
+    pricesBox.innerHTML=hasItems&&o.ok?o.rows.map(function(r,i){
       var v=o.sub>0?Math.round(r.c.preco*o.total/o.sub*100)/100:0;
-      return '<label class="f">'+esc(modelName(r.it.model))+' '+esc(r.it.size)+(color(r.it)?' · '+esc(color(r.it)):'')+' · '+r.it.qty+' peça(s)<input class="close-price" type="number" min="0" step="0.01" value="'+v.toFixed(2)+'" aria-label="Valor unitário do item '+(i+1)+'"></label>';
+      var unitPrice=oldPrices[i]===undefined?v.toFixed(2):oldPrices[i];
+      return '<label class="f">'+esc(modelName(r.it.model))+' '+esc(r.it.size)+(color(r.it)?' · '+esc(color(r.it)):'')+' · '+r.it.qty+' peça(s)<input class="close-price" type="number" min="0" step="0.01" value="'+esc(unitPrice)+'" aria-label="Valor unitário do item '+(i+1)+'"></label>';
     }).join(""):"";
+    pricesBox.dataset.orderKey=orderKey;
 
     var fText;
     if (ap > 0 && ok) fText = "No preço atual de " + brl.format(ap) + ", este item deixa " + pct(mr) + " de margem. O sugerido é " + brl.format(r.preco) + " por peça.";
@@ -975,7 +979,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     for(var i=0;i<S.items.length;i++){
       var it=S.items[i],p=product(it),v=Number(prices[i]&&prices[i].value);
       if(!p||!p.tamanhos.includes(it.size)){$("closeMsg").textContent="Escolha cor e tamanho cadastrados no estoque para cada item.";return;}
-      if(!Number.isFinite(v)||v<0||Math.abs(v*100-Math.round(v*100))>0.00001){$("closeMsg").textContent="Confira o valor unitário (até 2 casas decimais).";return;}
+      if(!prices[i]||prices[i].value.trim()===""||!Number.isFinite(v)||v<0||Math.abs(v*100-Math.round(v*100))>0.00001){$("closeMsg").textContent="Confira o valor unitário (até 2 casas decimais).";return;}
       rows.push({codigo:p.codigo,tamanho:it.size,qtd:it.qty,valor:v});
     }
     closing=true;this.disabled=true;$("closeMsg").textContent="Registrando pedido...";
