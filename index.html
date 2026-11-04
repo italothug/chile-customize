@@ -737,7 +737,7 @@ html, body{margin:0;padding:0;background:#0d0f14;}
       if(products.some(function(p){return p.codigo===codigo;})){toast('Essa cor já existe para o modelo.',true);return;}
       var save=document.getElementById('new-color-save');if(save.disabled)return;save.disabled=true;
       var novo={codigo:codigo,categoria:template.categoria,modelo:template.modelo,cor:cor,tamanhos:['PP','P','M','G','GG'],min:Number(template.min||0),custo:Number(template.custo||0),venda:Number(template.venda||0),ativo:true};
-      if(!await upsertProduct(novo)){save.disabled=false;return;}closeModal();await loadData();movGrupoSel=movGroupKeyFor(novo);movCorSel=cor;movTamanhoSel='PP';renderAll();toast('Cor '+cor+' criada com tamanhos do PP ao GG.');
+      if(!await upsertProduct(novo)){save.disabled=false;return;}closeModal();await loadData();movGrupoSel=movGroupKeyFor(novo);movCorSel=cor;movTamanhoSel='PP';renderAll();sendCalculatorStock();var frame=document.getElementById('dtf-calculator');if(frame&&frame.contentWindow)frame.contentWindow.postMessage({source:'chile-stock',type:'color-created',cor:cor},location.origin);toast('Cor '+cor+' criada com tamanhos do PP ao GG.');
     });
     document.getElementById('new-color-cancel').addEventListener('click',closeModal);
     document.getElementById('new-color-save').addEventListener('click',function(){if(modalSaveHandler)modalSaveHandler();});
@@ -924,6 +924,13 @@ html, body{margin:0;padding:0;background:#0d0f14;}
     var frame=document.getElementById('dtf-calculator');
     if(e.origin!==location.origin||!frame||e.source!==frame.contentWindow||!e.data||e.data.source!=='chile-calculator')return;
     if(e.data.type==='stock-request'){sendCalculatorStock();return;}
+    if(e.data.type==='create-color'){
+      var aliases={trad:'Normal',baby:'Baby look',crop:'Cropped',inf:'Infantil',over:'Oversize'};
+      var model=aliases[e.data.model];
+      var template=products.find(function(p){return p.ativo!==false&&p.categoria==='Blusa'&&p.modelo===model;});
+      if(!template){toast('Modelo sem produto ativo no estoque.',true);return;}
+      movGrupoSel=movGroupKeyFor(template);openCreateColor();return;
+    }
     if(e.data.type!=='close-order')return;
     var reply=function(ok,error){frame.contentWindow.postMessage({source:'chile-stock',type:'close-result',ok:ok,error:error||''},location.origin);};
     if(!hasLoadedData||root.style.display==='none'){reply(false,'Entre no estoque e aguarde a sincronização.');return;}
