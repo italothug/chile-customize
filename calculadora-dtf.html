@@ -335,7 +335,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
           </div>
           <div class="preview">
             <div class="grp" id="sizesLbl">Tamanho</div>
-            <div class="sizes" id="sizes" role="group" aria-labelledby="sizesLbl"></div><label class="f" style="margin:12px 0">Cor da blusa<select id="colorSelect"></select></label>
+            <div class="sizes" id="sizes" role="group" aria-labelledby="sizesLbl"></div>
             <div class="prevbar">
               <span class="side" id="sideLbl">Frente</span>
               <button class="flip" id="flip" type="button" aria-label="Virar a blusa (mostrando a frente)" title="Frente e verso">
@@ -354,7 +354,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
         </div>
         <hr class="sep">
         <div class="row">
-          <label class="f">Quantidade de peças<input id="qty" type="number" inputmode="numeric" min="1" step="1"></label>
+          <div style="grid-column:1/-1"><div class="grp">Cor da blusa</div><div class="sizes" id="quoteColors" role="group" aria-label="Cor da blusa"></div></div><label class="f">Quantidade de peças<input id="qty" type="number" inputmode="numeric" min="1" step="1"></label>
           <label class="f">Custo fixo do item (R$)<input id="fixo" type="number" inputmode="decimal" min="0" step="0.5"></label>
         </div>
         <p class="note">Custo fixo é o que você gasta uma vez por arte, como a criação ou ajuste. Ele é dividido pela quantidade desse item.</p>
@@ -379,7 +379,13 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
         </div>
       </details>
 
-      <details class="panel fold" id="foldCustos">
+      <details class="panel fold"><summary><span class="ft">Cores e condições do orçamento</span><span class="fs" id="termsSummary"></span></summary><div class="fold-body">
+<label class="f">Cores disponíveis (separe por vírgula)<input id="cores" type="text"></label>
+<label class="f">Prazo<input id="prazo" type="text"></label>
+<label class="f">Formas de pagamento<input id="pagto" type="text"></label>
+<div class="row"><label class="f">Sinal (% do total)<input id="sinalPct" type="number" min="0" max="100" step="1"></label><label class="f">Cobrar sinal em pedidos acima de (R$)<input id="sinalMin" type="number" min="0" step="0.01"></label></div>
+<p class="note">Acima desse valor, a mensagem mostra sinal e restante. Até esse valor, pagamento integral.</p></div></details>
+<details class="panel fold" id="foldCustos">
         <summary><span class="ft">Seus custos</span><span class="fs" id="sumCustos"></span></summary>
         <div class="fold-body">
         <div class="grp" style="margin-bottom:8px">Produtos sem estampa (fornecedor)</div>
@@ -447,7 +453,9 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
       <div class="chips small" id="descChips"></div>
       <div id="orderLines"></div>
       <div id="orderWarn"></div>
-      <button class="secondary" id="copy" type="button">Copiar orçamento para o cliente</button>
+      <div id="termsLines" class="note"></div><label class="f">Nome do cliente<input id="cliente" type="text" maxlength="120"></label>
+<div class="row"><button class="secondary" id="copy" type="button">Copiar p/ WhatsApp</button><button class="secondary" id="copyDirect" type="button">Copiar p/ Direct</button></div>
+<details><summary>Ver a mensagem</summary><pre id="quotePreview" style="white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:12px;border:1px solid var(--line);border-radius:8px"></pre></details>
       <hr class="sep"><div class="tk-sec">Fechar pedido</div>
       <label class="f">Nome da pessoa<input id="closeCustomer" type="text" maxlength="120" placeholder="Nome do cliente"></label>
       <div id="closePrices" class="row" style="margin-top:12px"></div>
@@ -469,12 +477,12 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   var aliases={trad:"Normal",baby:"Baby look",crop:"Cropped",inf:"Infantil",over:"Oversize"};
   function normalized(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();}
   function choices(id){var model=aliases[id]||modelName(id);return stockProducts.filter(function(p){return p.ativo!==false&&p.categoria==="Blusa"&&normalized(p.modelo)===normalized(model);});}
-  function product(it){return choices(it.model).filter(function(p){return p.codigo===it.codigo;})[0];}
-  function color(it){var p=product(it);return p?p.cor:"";}
+  function product(it){return choices(it.model).filter(function(p){return normalized(p.cor)===normalized(it.cor||S.cor);})[0];}
+  function color(it){return it.cor||S.cores[0];}
   function requestStock(){if(parent!==window)parent.postMessage({source:"chile-calculator",type:"stock-request"},location.origin);}
   window.addEventListener("message",function(e){
     if(e.origin!==location.origin||e.source!==parent||!e.data||e.data.source!=="chile-stock")return;
-    if(e.data.type==="stock"){stockProducts=e.data.products||[];stockBalances=e.data.balances||{};stockReady=true;render();}
+    if(e.data.type==="stock"){stockProducts=e.data.products||[];stockBalances=e.data.balances||{};stockReady=true;stockProducts.forEach(function(p){if(p.ativo!==false&&p.categoria==="Blusa"&&p.cor&&!S.cores.some(function(c){return normalized(c)===normalized(p.cor);}))S.cores.push(p.cor);});$("cores").value=S.cores.join(", ");S.items.forEach(function(it){var p=stockProducts.find(function(p){return p.codigo===it.codigo;});if(p&&!it.corMigrated){it.cor=p.cor;it.corMigrated=true;}});save();render();}
     if(e.data.type==="close-result"){closing=false;$("closeOrder").disabled=false;$("closeMsg").textContent=e.data.ok?"Pedido fechado e venda registrada no estoque.":e.data.error||"Falha ao fechar pedido.";if(e.data.ok){S.items=[];save();render();requestStock();}}
   });
   // Medidas em cm, conforme as tabelas de tamanhos: h = altura, w = largura. São aproximadas (até 1,5 cm de diferença).
@@ -520,6 +528,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     perda: 10, minutos: 30, hora: 10, energia: 0.3, taxas: 0, fixo: 0,
     tiers: [[1, 45], [5, 40], [10, 35], [25, 30], [50, 25]],
     faixa: "total", items: [], extra: [], costs: [], descTipo: "pct", desc: 0,
+    cor:"Preto", cores:["Preto","Branco","Off"], cliente:"", prazo:"Até 2 dias após a confirmação do pagamento", pagto:"Pix ou cartão de crédito", sinalPct:50, sinalMin:100,
     size: "M", codigo: "", front: true, w: 20, h: 25, back: false, bw: 20, bh: 25, qty: 10, useBag: true, round: true
   };
   var S = JSON.parse(JSON.stringify(DEFAULT));
@@ -528,6 +537,14 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     if (saved) { var p = JSON.parse(saved); for (var k in p) if (k in S) S[k] = p[k]; }
   } catch (e) {}
   if (!Array.isArray(S.items)) S.items = [];
+  S.cores=Array.isArray(S.cores)?S.cores.filter(function(x){return typeof x==="string"&&x.trim();}).map(function(x){return x.trim();}):[];
+  if(!S.cores.length)S.cores=["Preto","Branco","Off"];
+  if(!S.cores.includes(S.cor))S.cor=S.cores[0];
+  ["cliente","prazo","pagto"].forEach(function(k){if(typeof S[k]!=="string")S[k]=DEFAULT[k];});
+  ["sinalPct","sinalMin"].forEach(function(k){if(typeof S[k]!=="number"||!Number.isFinite(S[k])||S[k]<0)S[k]=DEFAULT[k];});
+  S.sinalPct=Math.min(100,S.sinalPct);
+  S.items=S.items.filter(function(it){return it&&typeof it==="object";});
+  S.items.forEach(function(it){if(typeof it.cor!=="string"||!it.cor.trim())it.cor=S.cores[0];});
   if (!Array.isArray(S.extra)) S.extra = [];
   if (!Array.isArray(S.costs)) S.costs = [];
   S.costs = S.costs.filter(function (c) { return c && typeof c.nome === "string" && isFinite(c.valor) && c.valor >= 0; }).map(function (c) {
@@ -582,7 +599,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   }
 
   function draftItem() {
-    return { model: S.model, codigo: S.codigo, qty: Math.max(1, S.qty), front: S.front, w: S.w, h: S.h, back: S.back, bw: S.bw, bh: S.bh, useBag: S.useBag, fixo: S.fixo, size: S.size };
+    return { model: S.model, cor:S.cor, corMigrated:true, codigo: S.codigo, qty: Math.max(1, S.qty), front: S.front, w: S.w, h: S.h, back: S.back, bw: S.bw, bh: S.bh, useBag: S.useBag, fixo: S.fixo, size: S.size };
   }
   function artLabelOf(it) {
     var a = [];
@@ -771,17 +788,26 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   }
 
 
-  function quoteText(o) {
-    var L = ["Orçamento de camisetas personalizadas"];
-    o.rows.forEach(function (r, i) {
-      L.push((o.rows.length > 1 ? (i + 1) + ") " : "") + r.it.qty + (r.it.qty === 1 ? " peça" : " peças") + " · " + modelName(r.it.model) + (r.it.size ? " " + r.it.size : "") + (color(r.it) ? " · " + color(r.it) : "") + " · " + artLabelOf(r.it) + "\n    " + brl.format(r.c.preco) + " cada = " + brl.format(r.sub));
+  function terms(o){
+    var tc=Math.round(o.total*100),on=S.sinalPct>0&&o.total>S.sinalMin;
+    var sc=on?Math.round(tc*S.sinalPct/100):0;
+    return {on:on,sinal:sc/100,resto:(tc-sc)/100};
+  }
+  function quoteText(o,wa){
+    var B=function(t){return wa?"*"+t+"*":t;},nome=S.cliente.trim(),t=terms(o),L=[];
+    L.push(B("Orçamento de camisetas personalizadas"));
+    L.push(nome?"Olá, "+nome+"! Segue o seu orçamento:":"Olá! Segue o seu orçamento:");L.push("");
+    o.rows.forEach(function(r,i){
+      L.push(B((o.rows.length>1?(i+1)+") ":"")+r.it.qty+(r.it.qty===1?" peça":" peças")+" · "+modelName(r.it.model)+(r.it.size?" "+r.it.size:"")+" · "+color(r.it)));
+      L.push("Arte: "+artLabelOf(r.it));L.push(brl.format(r.c.preco)+" cada = "+brl.format(r.sub));L.push("");
     });
-    if (o.desc > 0) {
-      L.push("Subtotal: " + brl.format(o.sub));
-      L.push("Desconto" + (S.descTipo === "pct" ? " (" + pct(Math.min(S.desc, 100)) + ")" : "") + ": -" + brl.format(o.desc));
-    }
-    L.push("Total: " + brl.format(o.total));
-    return L.join("\n");
+    if(o.desc>0){L.push("Subtotal: "+brl.format(o.sub));L.push("Desconto: -"+brl.format(o.desc));}
+    L.push(B("Total: "+brl.format(o.total)));
+    if(t.on){L.push("");L.push(B("Sinal de "+S.sinalPct+"% para iniciar: "+brl.format(t.sinal)));L.push("Restante: "+brl.format(t.resto));}
+    L.push("");
+    if(S.pagto.trim())L.push(B("Pagamento:")+" "+S.pagto.trim()+(t.on?"":" (valor integral)"));
+    if(S.prazo.trim())L.push(B("Prazo:")+" "+S.prazo.trim());
+    return L.join("\n").replace(/\n{3,}/g,"\n\n").trim();
   }
 
   function render() {
@@ -800,10 +826,9 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
 
     // pré-visualização em escala real (1 unidade = 1 cm), no tamanho escolhido, frente ou costas
     if ($("sizes").dataset.model !== S.model) buildSizes();
-    var opts=choices(S.model),select=$("colorSelect");
-    if(!opts.some(function(p){return p.codigo===S.codigo;}))S.codigo=opts[0]?opts[0].codigo:"";
-    select.innerHTML=opts.length?opts.map(function(p){return '<option value="'+esc(p.codigo)+'">'+esc(p.cor)+'</option>';}).join(""):'<option value="">Sem cor cadastrada</option>';
-    select.value=S.codigo;
+    var matched=product({model:S.model,cor:S.cor});S.codigo=matched?matched.codigo:"";
+    $("quoteColors").innerHTML=S.cores.map(function(cor){return '<button type="button" class="sz" aria-pressed="'+(cor===S.cor)+'" data-color="'+esc(cor)+'">'+esc(cor)+'</button>';}).join("");
+    $("quoteColors").querySelectorAll("button").forEach(function(button){button.onclick=function(){S.cor=button.dataset.color;save();render();};});
     document.querySelectorAll("#sizes .sz").forEach(function(b){
       var n=S.codigo?stockBalances[S.codigo+"|"+b.dataset.n]:null;
       b.textContent=b.dataset.n+(stockReady?" · "+(n==null?"—":n):"");
@@ -923,7 +948,13 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     else if (o.ok && o.desc > 0 && o.margem < 15) ow = '<p class="warn">Com o desconto, a margem do pedido caiu para ' + pct(o.margem) + ". Confira se compensa.</p>";
     $("orderWarn").innerHTML = ow;
     $("clear").hidden = !hasItems;
-    window.__quote = o.ok ? quoteText(o) : "";
+    window.__quote = o.ok ? quoteText(o,true) : "";
+    window.__quoteDirect=o.ok?quoteText(o,false):"";
+    $("copy").disabled=$("copyDirect").disabled=!o.ok;
+    $("quotePreview").textContent=window.__quoteDirect||"Ajuste a margem para calcular o orçamento.";
+    var paymentTerms=terms(o);
+    $("termsLines").textContent=o.ok?(paymentTerms.on?"Sinal: "+brl.format(paymentTerms.sinal)+" · Restante: "+brl.format(paymentTerms.resto):"Sinal: não se aplica · Pagamento integral"):"";
+    $("termsSummary").textContent=S.cores.join(", ")+" · sinal "+S.sinalPct+"% acima de "+brl.format(S.sinalMin);
     $("closeOrder").disabled=!hasItems||!o.ok||!stockReady||closing;
     $("closeHint").textContent=!stockReady?"Abra a calculadora pelo estoque para fechar pedidos.":!hasItems?"Adicione os itens ao pedido.":"O estoque será conferido ao fechar.";
     var pricesBox=$("closePrices"),orderKey=JSON.stringify(S.items);
@@ -970,7 +1001,24 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     $("modelTable").innerHTML = mt;
   }
 
-  $("colorSelect").addEventListener("change",function(){S.codigo=this.value;save();render();});
+  ["cliente","prazo","pagto","sinalPct","sinalMin"].forEach(function(k){
+    $(k).value=S[k];$(k).addEventListener("input",function(){
+      if(k==="sinalPct"||k==="sinalMin"){var n=Number(this.value);if(!Number.isFinite(n)||n<0||this.value==="")return;S[k]=k==="sinalPct"?Math.min(100,n):n;}
+      else S[k]=this.value;
+      if(k==="cliente")$("closeCustomer").value=S.cliente;
+      save();render();
+    });
+  });
+  $("closeCustomer").value=S.cliente;
+  $("closeCustomer").addEventListener("input",function(){S.cliente=this.value;$("cliente").value=S.cliente;save();render();});
+  $("cores").value=S.cores.join(", ");
+  $("cores").addEventListener("change",function(){
+    var list=Array.from(new Set(this.value.split(",").map(function(x){return x.trim();}).filter(Boolean)));
+    if(!list.length)list=["Preto","Branco","Off"];
+    S.cores=list;if(!list.includes(S.cor))S.cor=list[0];
+    S.items.forEach(function(it){if(!list.includes(it.cor)){it.cor=list[0];it.codigo="";}});
+    this.value=list.join(", ");save();render();
+  });
   $("closeOrder").addEventListener("click",function(){
     if(closing||!stockReady)return;
     var customer=$("closeCustomer").value.trim(),prices=document.querySelectorAll(".close-price"),rows=[];
@@ -995,10 +1043,10 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   });
   $("clear").addEventListener("click", function () { S.items = []; save(); render(); $("copyMsg").textContent = "Pedido limpo."; });
 
-  $("copy").addEventListener("click", function () {
-    var msg = $("copyMsg"), t = window.__quote;
+  function copyQuote(wa) {
+    var msg = $("copyMsg"), t = wa?window.__quote:window.__quoteDirect;
     if (!t) { msg.textContent = "Ajuste a margem antes de copiar."; return; }
-    function done() { msg.textContent = "Orçamento copiado."; }
+    function done() { msg.textContent = wa?"Mensagem para WhatsApp copiada.":"Mensagem para Direct copiada."; }
     function fallback() {
       var ta = document.createElement("textarea");
       ta.value = t; ta.style.position = "fixed"; ta.style.opacity = "0";
@@ -1009,7 +1057,9 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     }
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback);
     else fallback();
-  });
+  }
+  $("copy").addEventListener("click",function(){copyQuote(true);});
+  $("copyDirect").addEventListener("click",function(){copyQuote(false);});
 
   $("flip").addEventListener("click", function () {
     var svg = $("shirtSvg");
