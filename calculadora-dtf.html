@@ -91,9 +91,13 @@ input:hover, select:hover { border-color: var(--muted); }
 .check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
 .check input { width: 18px; height: 18px; accent-color: var(--text); margin: 0; }
 
-.artwrap { display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: 16px; align-items: start; }
+.artwrap { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 16px; align-items: start; }
 @media (max-width: 520px) { .artwrap { grid-template-columns: minmax(0, 1fr); } .preview { max-width: 280px; } }
 .sizes { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 12px; }
+#sizes{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;}
+#sizes .sz{flex:none;}
+.artwrap #frontBlock .row,.artwrap #backRow .row{grid-template-columns:repeat(2,minmax(0,210px));justify-content:start;max-width:432px;}
+@media(max-width:520px){.artwrap #frontBlock .row,.artwrap #backRow .row{grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;}}
 .sz { font: inherit; font-size: 13px; font-weight: 500; min-width: 38px; height: 30px; padding: 0 8px; color: var(--text); background: var(--surface); border: 1px solid var(--control); border-radius: var(--radius-control); cursor: pointer; }
 .sz:hover { background: var(--raised); }
 .sz[aria-pressed="true"] { border-color: var(--text); outline: 1px solid var(--text); outline-offset: -1px; background: var(--raised); }
@@ -380,7 +384,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
       </details>
 
       <details class="panel fold"><summary><span class="ft">Cores e condições do orçamento</span><span class="fs" id="termsSummary"></span></summary><div class="fold-body">
-<label class="f">Cores disponíveis (separe por vírgula)<input id="cores" type="text"></label>
+<div class="f">Cores cadastradas no estoque por modelo</div><button class="secondary" id="addStockColor" type="button">Adicionar cor ao modelo selecionado</button>
 <label class="f">Prazo<input id="prazo" type="text"></label>
 <label class="f">Formas de pagamento<input id="pagto" type="text"></label>
 <div class="row"><label class="f">Sinal (% do total)<input id="sinalPct" type="number" min="0" max="100" step="1"></label><label class="f">Cobrar sinal em pedidos acima de (R$)<input id="sinalMin" type="number" min="0" step="0.01"></label></div>
@@ -482,7 +486,8 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   function requestStock(){if(parent!==window)parent.postMessage({source:"chile-calculator",type:"stock-request"},location.origin);}
   window.addEventListener("message",function(e){
     if(e.origin!==location.origin||e.source!==parent||!e.data||e.data.source!=="chile-stock")return;
-    if(e.data.type==="stock"){stockProducts=e.data.products||[];stockBalances=e.data.balances||{};stockReady=true;stockProducts.forEach(function(p){if(p.ativo!==false&&p.categoria==="Blusa"&&p.cor&&!S.cores.some(function(c){return normalized(c)===normalized(p.cor);}))S.cores.push(p.cor);});$("cores").value=S.cores.join(", ");S.items.forEach(function(it){var p=stockProducts.find(function(p){return p.codigo===it.codigo;});if(p&&!it.corMigrated){it.cor=p.cor;it.corMigrated=true;}});save();render();}
+    if(e.data.type==="stock"){stockProducts=e.data.products||[];stockBalances=e.data.balances||{};stockReady=true;S.items.forEach(function(it){var p=stockProducts.find(function(p){return p.codigo===it.codigo;});if(p&&!it.corMigrated){it.cor=p.cor;it.corMigrated=true;}});save();render();}
+    if(e.data.type==="color-created"){S.cor=e.data.cor;save();render();}
     if(e.data.type==="close-result"){closing=false;$("closeOrder").disabled=false;$("closeMsg").textContent=e.data.ok?"Pedido fechado e venda registrada no estoque.":e.data.error||"Falha ao fechar pedido.";if(e.data.ok){S.items=[];save();render();requestStock();}}
   });
   // Medidas em cm, conforme as tabelas de tamanhos: h = altura, w = largura. São aproximadas (até 1,5 cm de diferença).
@@ -826,8 +831,11 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
 
     // pré-visualização em escala real (1 unidade = 1 cm), no tamanho escolhido, frente ou costas
     if ($("sizes").dataset.model !== S.model) buildSizes();
+    var available=stockReady?choices(S.model).map(function(p){return p.cor;}):S.cores;
+    available=available.filter(function(cor,i){return available.findIndex(function(x){return normalized(x)===normalized(cor);})===i;});
+    if(available.length&&!available.some(function(cor){return normalized(cor)===normalized(S.cor);}))S.cor=available[0];
     var matched=product({model:S.model,cor:S.cor});S.codigo=matched?matched.codigo:"";
-    $("quoteColors").innerHTML=S.cores.map(function(cor){return '<button type="button" class="sz" aria-pressed="'+(cor===S.cor)+'" data-color="'+esc(cor)+'">'+esc(cor)+'</button>';}).join("");
+    $("quoteColors").innerHTML=available.length?available.map(function(cor){return '<button type="button" class="sz" aria-pressed="'+(normalized(cor)===normalized(S.cor))+'" data-color="'+esc(cor)+'">'+esc(cor)+'</button>';}).join(""):'<span class="note">Nenhuma cor cadastrada para este modelo.</span>';
     $("quoteColors").querySelectorAll("button").forEach(function(button){button.onclick=function(){S.cor=button.dataset.color;save();render();};});
     document.querySelectorAll("#sizes .sz").forEach(function(b){
       var n=S.codigo?stockBalances[S.codigo+"|"+b.dataset.n]:null;
@@ -954,7 +962,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
     $("quotePreview").textContent=window.__quoteDirect||"Ajuste a margem para calcular o orçamento.";
     var paymentTerms=terms(o);
     $("termsLines").textContent=o.ok?(paymentTerms.on?"Sinal: "+brl.format(paymentTerms.sinal)+" · Restante: "+brl.format(paymentTerms.resto):"Sinal: não se aplica · Pagamento integral"):"";
-    $("termsSummary").textContent=S.cores.join(", ")+" · sinal "+S.sinalPct+"% acima de "+brl.format(S.sinalMin);
+    $("termsSummary").textContent=(stockReady?choices(S.model).map(function(p){return p.cor;}).join(", "):S.cores.join(", "))+" · sinal "+S.sinalPct+"% acima de "+brl.format(S.sinalMin);
     $("closeOrder").disabled=!hasItems||!o.ok||!stockReady||closing;
     $("closeHint").textContent=!stockReady?"Abra a calculadora pelo estoque para fechar pedidos.":!hasItems?"Adicione os itens ao pedido.":"O estoque será conferido ao fechar.";
     var pricesBox=$("closePrices"),orderKey=JSON.stringify(S.items);
@@ -1011,14 +1019,7 @@ input[type="number"],input[type="text"],select,.model,.sz,.chip{background:var(-
   });
   $("closeCustomer").value=S.cliente;
   $("closeCustomer").addEventListener("input",function(){S.cliente=this.value;$("cliente").value=S.cliente;save();render();});
-  $("cores").value=S.cores.join(", ");
-  $("cores").addEventListener("change",function(){
-    var list=Array.from(new Set(this.value.split(",").map(function(x){return x.trim();}).filter(Boolean)));
-    if(!list.length)list=["Preto","Branco","Off"];
-    S.cores=list;if(!list.includes(S.cor))S.cor=list[0];
-    S.items.forEach(function(it){if(!list.includes(it.cor)){it.cor=list[0];it.codigo="";}});
-    this.value=list.join(", ");save();render();
-  });
+  $("addStockColor").addEventListener("click",function(){if(parent!==window)parent.postMessage({source:"chile-calculator",type:"create-color",model:S.model},location.origin);else $("closeMsg").textContent="Abra a calculadora pelo estoque para adicionar cor.";});
   $("closeOrder").addEventListener("click",function(){
     if(closing||!stockReady)return;
     var customer=$("closeCustomer").value.trim(),prices=document.querySelectorAll(".close-price"),rows=[];
